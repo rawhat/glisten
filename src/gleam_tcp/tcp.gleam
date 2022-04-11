@@ -233,7 +233,7 @@ pub fn start_acceptor_pool(
   handler: LoopFn,
   pool_count: Int,
 ) -> Result(Nil, Nil) {
-  supervisor.start_spec(supervisor.Spec(
+  let _ = supervisor.start_spec(supervisor.Spec(
     argument: Nil,
     max_frequency: 5,
     frequency_period: 1,
