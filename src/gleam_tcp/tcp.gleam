@@ -1,6 +1,5 @@
 import gleam/dynamic.{Dynamic}
 import gleam/erlang/atom
-// import gleam/io
 import gleam/iterator.{Iterator, Next}
 import gleam/list
 import gleam/map.{Map}
@@ -125,9 +124,6 @@ pub fn receive(socket: Socket) -> Result(BitString, SocketReason) {
   do_receive(socket, 0)
 }
 
-// type RawMessage {
-//   Tcp(socket: Port, data: BitString)
-// }
 pub type Acceptor {
   AcceptConnection(ListenSocket)
 }
@@ -152,7 +148,6 @@ pub fn echo_loop(
   msg: HandlerMessage,
   state: AcceptorState,
 ) -> actor.Next(AcceptorState) {
-  // io.debug(#("got a message", msg, "with a sender", state))
   case msg, state {
     ReceiveMessage(data), AcceptorState(socket: Some(sock), ..) -> {
       let _ = send(sock, data)
@@ -170,15 +165,9 @@ pub fn start_handler(
 ) -> Result(Sender(HandlerMessage), actor.StartError) {
   actor.start_spec(actor.Spec(
     init: fn() {
-      let _ = Nil
-      // io.println("starting up!")
-      // io.println("controlling the process...")
-      // io.debug(res)
       let socket_receiver =
         process.bare_message_receiver()
         |> process.map_receiver(fn(msg) {
-          // io.println("i received a message:  ")
-          // io.debug(msg)
           case dynamic.unsafe_coerce(msg) {
             Tcp(_sock, data) -> ReceiveMessage(data)
             message -> message
@@ -191,9 +180,6 @@ pub fn start_handler(
   ))
 }
 
-// message type should be like
-//   SendMessage
-//   ReceiveMessage ?
 pub fn start_acceptor(
   socket: ListenSocket,
   loop_fn: LoopFn,
@@ -202,64 +188,29 @@ pub fn start_acceptor(
     init: fn() {
       let #(sender, actor_receiver) = process.new_channel()
 
-      // let socket_receiver =
-      //   process.bare_message_receiver()
-      //   |> process.map_receiver(fn(msg) {
-      //     case dynamic.unsafe_coerce(msg) {
-      //       Tcp(_sock, data) -> ReceiveMessage(data)
-      //       message -> message
-      //     }
-      //   })
       process.send(sender, AcceptConnection(socket))
 
-      // let receiver = process.merge_receiver(actor_receiver, socket_receiver)
-      let receiver = actor_receiver
-
-      actor.Ready(AcceptorState(sender, None), Some(receiver))
+      actor.Ready(AcceptorState(sender, None), Some(actor_receiver))
     },
     init_timeout: 30_000_000,
-    loop: fn(msg, state) { // io.println("in loop with a message")
-      // io.debug(msg)
+    loop: fn(msg, state) {
       let AcceptorState(sender, ..) = state
       case msg {
         AcceptConnection(listener) -> {
-          // io.println("attempting to accept")
           assert Ok(sock) = accept(listener)
-          // io.println("i have accepted!")
-          // io.debug(process.pid(sender))
-          // let _res = controlling_process(sock, process.pid(sender))
-          // actor.Continue(AcceptorState(..state, socket: Some(sock)))
-          // watch me ignore this error 😎
           assert Ok(start) = start_handler(sock, loop_fn)
-          // io.println("got a worker sender")
-          // io.debug(start)
           let res = controlling_process(sock, process.pid(start))
           case res {
-            Error(reason) -> {
-              // io.println("failed to control process")
-              // io.debug(reason)
-              // io.debug(sock)
-              // io.debug(socket_info(sock))
-              actor.Stop(Abnormal(dynamic.from(reason)))
-            }
+            Error(reason) -> actor.Stop(Abnormal(dynamic.from(reason)))
             _ -> {
               actor.send(sender, AcceptConnection(listener))
               actor.Continue(state)
             }
           }
         }
-      } },
+      }
+    },
   ))
-  // io.debug(res)
-  // io.println("we started!")
-  // io.debug(start)
-  // SendMessage(msg) -> {
-  //   assert Some(socket) = sock
-  //   // io.println("sending a message!")
-  //   let _ = send(socket, msg)
-  //   actor.Continue(state)
-  // }
-  // msg -> loop_fn(msg, state)
 }
 
 pub fn receive_timeout(

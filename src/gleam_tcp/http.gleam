@@ -3,7 +3,6 @@ import gleam/string_builder.{StringBuilder}
 import gleam/bit_string
 import gleam/http/response.{Response}
 import gleam/int
-// import gleam/io
 import gleam/list
 import gleam/otp/actor
 import gleam/otp/process
@@ -68,13 +67,9 @@ pub fn http_response(status: Int, body: BitString) -> BitString {
 }
 
 pub fn ok(_msg: HandlerMessage, sock: Socket) -> actor.Next(Socket) {
-  // io.debug("i am in the ok method!")
-  // assert AcceptorState(_sender, Some(sock)) = state
-
   "hello, world!"
   |> bit_string.from_string
   |> http_response(200, _)
-  // |> io.debug
   |> send(sock, _)
 
   actor.Stop(process.Normal)
