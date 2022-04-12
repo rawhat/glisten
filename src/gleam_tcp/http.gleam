@@ -3,13 +3,12 @@ import gleam/string_builder.{StringBuilder}
 import gleam/bit_string
 import gleam/http/response.{Response}
 import gleam/int
-import gleam/io
+// import gleam/io
 import gleam/list
-import gleam/option.{Some}
 import gleam/otp/actor
 import gleam/otp/process
 import gleam/result
-import gleam_tcp/tcp.{Acceptor, AcceptorState, send}
+import gleam_tcp/tcp.{HandlerMessage, Socket, send}
 
 pub fn code_to_string(code: Int) -> String {
   case code {
@@ -68,14 +67,14 @@ pub fn http_response(status: Int, body: BitString) -> BitString {
   |> to_string
 }
 
-pub fn ok(_msg: Acceptor, state: AcceptorState) -> actor.Next(AcceptorState) {
-  io.debug("i am in the ok method!")
-  assert AcceptorState(_sender, Some(sock)) = state
+pub fn ok(_msg: HandlerMessage, sock: Socket) -> actor.Next(Socket) {
+  // io.debug("i am in the ok method!")
+  // assert AcceptorState(_sender, Some(sock)) = state
 
   "hello, world!"
   |> bit_string.from_string
   |> http_response(200, _)
-  |> io.debug
+  // |> io.debug
   |> send(sock, _)
 
   actor.Stop(process.Normal)

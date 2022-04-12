@@ -3,17 +3,19 @@ import gleam/erlang
 // import gleam/otp/process
 import gleam_tcp/http
 // import gleam_tcp/tcp.{receiver_to_iterator, start_acceptor}
-import gleam_tcp/tcp.{start_acceptor}
+import gleam_tcp/tcp
 
 pub fn main() {
   // let #(_sender, receiver) = process.new_channel()
 
   assert Ok(socket) = tcp.do_listen_tcp(8001, [])
 
-  assert Ok(_sender1) = start_acceptor(socket, http.ok)
-  assert Ok(_sender2) = start_acceptor(socket, http.ok)
+  // assert Ok(_sender1) = start_acceptor(socket, http.ok)
+  // assert Ok(_sender2) = start_acceptor(socket, http.ok)
 
-  erlang.sleep_forever()
+  try _ = tcp.start_acceptor_pool(socket, http.ok, 10)
+
+  Ok(erlang.sleep_forever())
 
   // receiver
   // |> receiver_to_iterator
