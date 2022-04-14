@@ -129,7 +129,6 @@ pub type Acceptor {
 }
 
 pub type HandlerMessage {
-  SendMessage(BitString)
   ReceiveMessage(BitString)
   Tcp(socket: Port, data: BitString)
 }
