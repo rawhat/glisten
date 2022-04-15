@@ -7,13 +7,16 @@ import gleam/http
 import gleam/http/request.{Request}
 import gleam/http/response.{Response}
 import gleam/int
+import gleam/io
 import gleam/list
 import gleam/option.{Option}
 import gleam/otp/actor
 import gleam/otp/process
 import gleam/result
 import gleam/string
-import gleam_tcp/tcp.{HandlerMessage, LoopFn, ReceiveMessage, Socket, send}
+import gleam_tcp/tcp.{
+  HandlerMessage, LoopFn, ReceiveMessage, Socket, Tcp, TcpClosed, send,
+}
 
 pub type PacketType {
   Http
@@ -168,30 +171,38 @@ pub type HttpHandler =
 
 pub fn make_handler(handler: HttpHandler) -> LoopFn {
   fn(msg, sock) {
-    assert ReceiveMessage(data) = msg
-    case parse_request(
-      data
-      |> charlist.to_string
-      |> bit_string.from_string,
-    ) {
-      Ok(req) -> {
-        assert Ok(resp) =
-          req
-          |> handler
-          |> to_string
-          |> bit_string.to_string
-        send(sock, charlist.from_string(resp))
+    case msg {
+      Tcp(_, _) -> {
+        io.print("this should not happen")
+        actor.Continue(sock)
       }
-      Error(_) -> {
-        assert Ok(error) =
-          400
-          |> response.new
-          |> response.set_body(bit_string.from_string(""))
-          |> to_string
-          |> bit_string.to_string
-        send(sock, charlist.from_string(error))
+      TcpClosed(_) -> actor.Continue(sock)
+      ReceiveMessage(data) -> {
+        case parse_request(
+          data
+          |> charlist.to_string
+          |> bit_string.from_string,
+        ) {
+          Ok(req) -> {
+            assert Ok(resp) =
+              req
+              |> handler
+              |> to_string
+              |> bit_string.to_string
+            send(sock, charlist.from_string(resp))
+          }
+          Error(_) -> {
+            assert Ok(error) =
+              400
+              |> response.new
+              |> response.set_body(bit_string.from_string(""))
+              |> to_string
+              |> bit_string.to_string
+            send(sock, charlist.from_string(error))
+          }
+        }
+        actor.Stop(process.Normal)
       }
     }
-    actor.Stop(process.Normal)
   }
 }

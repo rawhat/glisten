@@ -96,7 +96,7 @@ pub fn merge_with_default_options(options: List(TcpOption)) -> List(TcpOption) {
   let overrides = opts_to_map(options)
 
   [
-    Backlog(1048576),
+    Backlog(4096),
     Nodelay(True),
     Linger(#(True, 30)),
     SendTimeout(30_000),
@@ -132,6 +132,7 @@ pub type Acceptor {
 pub type HandlerMessage {
   ReceiveMessage(Charlist)
   Tcp(socket: Port, data: Charlist)
+  TcpClosed(Nil)
 }
 
 pub type Channel =
