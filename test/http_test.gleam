@@ -11,7 +11,7 @@ Host: localhost:8001
 User-Agent: curl/7.82.0
 Accept: */*
 
-"
+hello, world!"
     |> bit_string.from_string
 
   let req =
@@ -22,6 +22,7 @@ Accept: */*
     |> request.prepend_header("Host", "localhost:8001")
     |> request.prepend_header("User-Agent", "curl/7.82.0")
     |> request.prepend_header("Accept", "*/*")
+    |> request.set_body(bit_string.from_string("hello, world!"))
     |> Ok
 
   parse_request(bs)

@@ -1,5 +1,6 @@
 import gleam/dynamic.{Dynamic}
 import gleam/erlang/atom
+import gleam/erlang/charlist.{Charlist}
 import gleam/iterator.{Iterator, Next}
 import gleam/list
 import gleam/map.{Map}
@@ -74,7 +75,7 @@ pub external fn do_receive(
 
 pub external fn send(
   socket: Socket,
-  packet: BitString,
+  packet: Charlist,
 ) -> Result(Nil, SocketReason) =
   "gen_tcp" "send"
 
@@ -95,7 +96,7 @@ pub fn merge_with_default_options(options: List(TcpOption)) -> List(TcpOption) {
   let overrides = opts_to_map(options)
 
   [
-    Backlog(1024),
+    Backlog(1048576),
     Nodelay(True),
     Linger(#(True, 30)),
     SendTimeout(30_000),
@@ -129,8 +130,8 @@ pub type Acceptor {
 }
 
 pub type HandlerMessage {
-  ReceiveMessage(BitString)
-  Tcp(socket: Port, data: BitString)
+  ReceiveMessage(Charlist)
+  Tcp(socket: Port, data: Charlist)
 }
 
 pub type Channel =

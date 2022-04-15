@@ -13,7 +13,7 @@ import gleam/otp/actor
 import gleam/otp/process
 import gleam/result
 import gleam/string
-import gleam_tcp/tcp.{HandlerMessage, Socket, send}
+import gleam_tcp/tcp.{HandlerMessage, LoopFn, ReceiveMessage, Socket, send}
 
 pub type PacketType {
   Http
@@ -68,6 +68,9 @@ pub fn parse_headers(
   }
 }
 
+// pub fn parse_body(bs: BitString, body: BitString) -> BitString {
+//   case DecodeError()
+// }
 pub fn parse_request(bs: BitString) -> Result(Request(BitString), DecodeError) {
   try BinaryData(req, rest) = decode_packet(Http, bs, [])
   assert HttpRequest(method, AbsPath(path), _version) = req
@@ -78,11 +81,11 @@ pub fn parse_request(bs: BitString) -> Result(Request(BitString), DecodeError) {
     |> http.parse_method
     |> result.replace_error(InvalidMethod)
 
-  try #(headers, _rest) = parse_headers(rest, [])
+  try #(headers, rest) = parse_headers(rest, [])
 
   let req =
     request.new()
-    |> request.set_body(<<>>)
+    |> request.set_body(rest)
     |> request.set_method(method)
     |> request.set_path(charlist.to_string(path))
 
@@ -147,15 +150,48 @@ pub fn http_response(status: Int, body: BitString) -> BitString {
 }
 
 pub fn ok(_msg: HandlerMessage, sock: Socket) -> actor.Next(Socket) {
-  "hello, world!"
-  |> bit_string.from_string
-  |> http_response(200, _)
+  assert Ok(resp) =
+    "hello, world!"
+    |> bit_string.from_string
+    |> http_response(200, _)
+    |> bit_string.to_string
+
+  resp
+  |> charlist.from_string
   |> send(sock, _)
 
   actor.Stop(process.Normal)
 }
-// pub fn echo(msg: HandlerMessage, sock: Socket) -> actor.Next(Socket) {
-//   case msg {
-//     ReceiveMessage()
-//   }
-// }
+
+pub type HttpHandler =
+  fn(Request(BitString)) -> Response(BitString)
+
+pub fn make_handler(handler: HttpHandler) -> LoopFn {
+  fn(msg, sock) {
+    assert ReceiveMessage(data) = msg
+    case parse_request(
+      data
+      |> charlist.to_string
+      |> bit_string.from_string,
+    ) {
+      Ok(req) -> {
+        assert Ok(resp) =
+          req
+          |> handler
+          |> to_string
+          |> bit_string.to_string
+        send(sock, charlist.from_string(resp))
+      }
+      Error(_) -> {
+        assert Ok(error) =
+          400
+          |> response.new
+          |> response.set_body(bit_string.from_string(""))
+          |> to_string
+          |> bit_string.to_string
+        send(sock, charlist.from_string(error))
+      }
+    }
+    actor.Stop(process.Normal)
+  }
+}
