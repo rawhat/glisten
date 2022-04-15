@@ -1,5 +1,5 @@
 import gleam/dynamic.{Dynamic}
-import gleam/erlang/atom
+import gleam/erlang/atom.{Atom}
 import gleam/erlang/charlist.{Charlist}
 import gleam/iterator.{Iterator, Next}
 import gleam/list
@@ -81,6 +81,17 @@ pub external fn send(
 
 pub external fn socket_info(socket: Socket) -> Map(a, b) =
   "socket" "info"
+
+pub external fn close(socket: Socket) -> Atom =
+  "gen_tcp" "close"
+
+pub external fn do_shutdown(socket: Socket, write: Atom) -> Nil =
+  "gen_tcp" "shutdown"
+
+pub fn shutdown(socket: Socket) {
+  assert Ok(write) = atom.from_string("write")
+  do_shutdown(socket, write)
+}
 
 fn opts_to_map(options: List(TcpOption)) -> Map(atom.Atom, Dynamic) {
   let opt_decoder = dynamic.tuple2(dynamic.dynamic, dynamic.dynamic)

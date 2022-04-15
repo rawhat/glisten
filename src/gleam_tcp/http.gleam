@@ -15,7 +15,7 @@ import gleam/otp/process
 import gleam/result
 import gleam/string
 import gleam_tcp/tcp.{
-  HandlerMessage, LoopFn, ReceiveMessage, Socket, Tcp, TcpClosed, send,
+  HandlerMessage, LoopFn, ReceiveMessage, Socket, Tcp, TcpClosed, close, send,
 }
 
 pub type PacketType {
@@ -201,6 +201,7 @@ pub fn make_handler(handler: HttpHandler) -> LoopFn {
             send(sock, charlist.from_string(error))
           }
         }
+        close(sock)
         actor.Stop(process.Normal)
       }
     }
