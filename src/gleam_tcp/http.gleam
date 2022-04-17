@@ -15,7 +15,7 @@ import gleam/otp/process
 import gleam/result
 import gleam/string
 import gleam_tcp/tcp.{
-  HandlerMessage, LoopFn, ReceiveMessage, Socket, Tcp, TcpClosed, close, send,
+  HandlerMessage, LoopFn, ReceiveMessage, Socket, Tcp, TcpClosed, send,
 }
 
 pub type PacketType {
@@ -148,7 +148,7 @@ pub fn http_response(status: Int, body: BitString) -> BitString {
     |> fn(size) { size + 1 }
     |> int.to_string,
   )
-  |> response.prepend_header("Connection", "close")
+  // |> response.prepend_header("Connection", "close")
   |> to_string
 }
 
@@ -176,7 +176,12 @@ pub fn make_handler(handler: HttpHandler) -> LoopFn {
         io.print("this should not happen")
         actor.Continue(sock)
       }
-      TcpClosed(_) -> actor.Continue(sock)
+      TcpClosed(_) -> {
+        // actor.Continue(sock)
+        // io.println("closed")
+        actor.Continue(sock)
+        // actor.Stop(process.Normal)
+      }
       ReceiveMessage(data) -> {
         case parse_request(
           data
@@ -189,7 +194,7 @@ pub fn make_handler(handler: HttpHandler) -> LoopFn {
               |> handler
               |> to_string
               |> bit_string.to_string
-            send(sock, charlist.from_string(resp))
+            assert Ok(Nil) = send(sock, charlist.from_string(resp))
           }
           Error(_) -> {
             assert Ok(error) =
@@ -198,10 +203,12 @@ pub fn make_handler(handler: HttpHandler) -> LoopFn {
               |> response.set_body(bit_string.from_string(""))
               |> to_string
               |> bit_string.to_string
-            send(sock, charlist.from_string(error))
+            assert Ok(Nil) = send(sock, charlist.from_string(error))
+            // io.print("sent error on socket")
+            // io.debug(res)
           }
         }
-        close(sock)
+        // actor.Continue(sock)
         actor.Stop(process.Normal)
       }
     }

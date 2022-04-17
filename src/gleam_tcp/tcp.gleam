@@ -11,9 +11,9 @@ import gleam/otp/process.{Abnormal, Pid, Receiver, Sender}
 import gleam/otp/supervisor.{add, worker}
 import gleam/pair
 
-pub type SocketMode {
-  Binary
-}
+// pub type SocketMode {
+//   Binary
+// }
 
 pub type TcpOption {
   Active(Bool)
@@ -23,7 +23,7 @@ pub type TcpOption {
   SendTimeout(Int)
   SendTimeoutClose(Bool)
   Reuseaddr(Bool)
-  Mode(SocketMode)
+  Binary
 }
 
 pub type SocketReason {
@@ -77,7 +77,7 @@ pub external fn send(
   socket: Socket,
   packet: Charlist,
 ) -> Result(Nil, SocketReason) =
-  "gen_tcp" "send"
+  "gleam_tcp_ffi" "send"
 
 pub external fn socket_info(socket: Socket) -> Map(a, b) =
   "socket" "info"
@@ -107,13 +107,13 @@ pub fn merge_with_default_options(options: List(TcpOption)) -> List(TcpOption) {
   let overrides = opts_to_map(options)
 
   [
-    Backlog(4096),
-    Nodelay(True),
-    Linger(#(True, 30)),
-    SendTimeout(30_000),
-    SendTimeoutClose(True),
-    Reuseaddr(True),
-    Mode(Binary),
+    // Backlog(4096),
+    // Nodelay(True),
+    // Linger(#(True, 30)),
+    // SendTimeout(30_000),
+    // SendTimeoutClose(True),
+    // Reuseaddr(True),
+    Binary,
   ]
   // Active(False),
   |> opts_to_map

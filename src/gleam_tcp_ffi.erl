@@ -1,5 +1,5 @@
 -module(gleam_tcp_ffi).
--export([decode_packet/3]).
+-export([decode_packet/3, send/2]).
 
 decode_packet(Type, Packet, Opts) ->
   case erlang:decode_packet(Type, Packet, Opts) of
@@ -8,4 +8,10 @@ decode_packet(Type, Packet, Opts) ->
     {more, Length} when Length =:= undefined -> {ok, {more_data, none}};
     {more, Length} -> {ok, {more_data, {some, Length}}};
     {error, Reason} -> {error, Reason}
+  end.
+
+send(Socket, Packet) ->
+  case gen_tcp:send(Socket, Packet) of
+    ok -> {ok, nil};
+    Res -> Res
   end.
