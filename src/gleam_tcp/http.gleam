@@ -71,9 +71,6 @@ pub fn parse_headers(
   }
 }
 
-// pub fn parse_body(bs: BitString, body: BitString) -> BitString {
-//   case DecodeError()
-// }
 pub fn parse_request(bs: BitString) -> Result(Request(BitString), DecodeError) {
   try BinaryData(req, rest) = decode_packet(Http, bs, [])
   assert HttpRequest(method, AbsPath(path), _version) = req
@@ -148,7 +145,6 @@ pub fn http_response(status: Int, body: BitString) -> BitString {
     |> fn(size) { size + 1 }
     |> int.to_string,
   )
-  // |> response.prepend_header("Connection", "close")
   |> to_string
 }
 
@@ -176,11 +172,7 @@ pub fn make_handler(handler: HttpHandler) -> LoopFn {
         io.print("this should not happen")
         actor.Continue(sock)
       }
-      TcpClosed(_msg) -> // actor.Continue(sock)
-        // io.println("closed")
-        // io.debug(msg)
-        // actor.Continue(sock)
-        actor.Stop(process.Normal)
+      TcpClosed(_msg) -> actor.Stop(process.Normal)
       ReceiveMessage(data) -> {
         case parse_request(
           data
@@ -205,7 +197,6 @@ pub fn make_handler(handler: HttpHandler) -> LoopFn {
             assert Ok(Nil) = send(sock, charlist.from_string(error))
           }
         }
-        // actor.Continue(sock)
         actor.Stop(process.Normal)
       }
     }

@@ -13,9 +13,6 @@ import gleam/pair
 import gleam/result
 import gleam
 
-// pub type SocketMode {
-//   Binary
-// }
 pub type TcpOption {
   Backlog(Int)
   Nodelay(Bool)
@@ -23,6 +20,8 @@ pub type TcpOption {
   SendTimeout(Int)
   SendTimeoutClose(Bool)
   Reuseaddr(Bool)
+  // Writing a wrapper for this would make my whole cool function below kind of
+  // obsolete.  So I did this!  It's definitely better.
   Active(Dynamic)
   Binary
 }
@@ -120,7 +119,6 @@ pub fn merge_with_default_options(options: List(TcpOption)) -> List(TcpOption) {
     Binary,
     Active(dynamic.from(False)),
   ]
-  // Active(False),
   |> opts_to_map
   |> map.merge(overrides)
   |> map.to_list
