@@ -1,4 +1,4 @@
--module(gleam_tcp_ffi).
+-module(glisten_ffi).
 -export([controlling_process/2, decode_packet/3, send/2, set_opts/2]).
 
 decode_packet(Type, Packet, Opts) ->

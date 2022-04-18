@@ -40,7 +40,7 @@ pub opaque type Socket {
 }
 
 external fn controlling_process(socket: Socket, pid: Pid) -> Result(Nil, Atom) =
-  "gleam_tcp_ffi" "controlling_process"
+  "glisten_ffi" "controlling_process"
 
 pub external fn do_listen_tcp(
   port: Int,
@@ -74,7 +74,7 @@ pub external fn send(
   socket: Socket,
   packet: Charlist,
 ) -> Result(Nil, SocketReason) =
-  "gleam_tcp_ffi" "send"
+  "glisten_ffi" "send"
 
 pub external fn socket_info(socket: Socket) -> Map(a, b) =
   "socket" "info"
@@ -94,7 +94,7 @@ pub external fn set_opts(
   socket: Socket,
   opts: List(TcpOption),
 ) -> Result(Nil, Nil) =
-  "gleam_tcp_ffi" "set_opts"
+  "glisten_ffi" "set_opts"
 
 fn opts_to_map(options: List(TcpOption)) -> Map(atom.Atom, Dynamic) {
   let opt_decoder = dynamic.tuple2(dynamic.dynamic, dynamic.dynamic)

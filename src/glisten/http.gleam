@@ -14,7 +14,7 @@ import gleam/otp/actor
 import gleam/otp/process
 import gleam/result
 import gleam/string
-import gleam_tcp/tcp.{
+import glisten/tcp.{
   HandlerMessage, LoopFn, ReceiveMessage, Socket, Tcp, TcpClosed, send,
 }
 
@@ -48,7 +48,7 @@ external fn decode_packet(
   packet: BitString,
   options: List(a),
 ) -> Result(DecodedPacket, DecodeError) =
-  "gleam_tcp_ffi" "decode_packet"
+  "glisten_ffi" "decode_packet"
 
 pub fn from_header(value: BitString) -> String {
   assert Ok(value) = bit_string.to_string(value)

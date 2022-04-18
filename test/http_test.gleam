@@ -2,7 +2,7 @@ import gleam/bit_string
 import gleam/http as ghttp
 import gleam/http/request
 import gleeunit/should
-import gleam_tcp/http.{parse_request}
+import glisten/http.{parse_request}
 
 pub fn parse_request_test() {
   let bs =
