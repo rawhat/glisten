@@ -10,19 +10,20 @@ import gleam/otp/port.{Port}
 import gleam/otp/process.{Abnormal, Pid, Receiver, Sender}
 import gleam/otp/supervisor.{add, worker}
 import gleam/pair
+import gleam/result
+import gleam
 
 // pub type SocketMode {
 //   Binary
 // }
-
 pub type TcpOption {
-  Active(Bool)
   Backlog(Int)
   Nodelay(Bool)
   Linger(#(Bool, Int))
   SendTimeout(Int)
   SendTimeoutClose(Bool)
   Reuseaddr(Bool)
+  Active(Dynamic)
   Binary
 }
 
@@ -39,11 +40,8 @@ pub opaque type Socket {
   Socket
 }
 
-external fn controlling_process(
-  socket: Socket,
-  pid: Pid,
-) -> Result(Nil, SocketReason) =
-  "gen_tcp" "controlling_process"
+external fn controlling_process(socket: Socket, pid: Pid) -> Result(Nil, Atom) =
+  "gleam_tcp_ffi" "controlling_process"
 
 pub external fn do_listen_tcp(
   port: Int,
@@ -93,6 +91,12 @@ pub fn shutdown(socket: Socket) {
   do_shutdown(socket, write)
 }
 
+pub external fn set_opts(
+  socket: Socket,
+  opts: List(TcpOption),
+) -> Result(Nil, Nil) =
+  "gleam_tcp_ffi" "set_opts"
+
 fn opts_to_map(options: List(TcpOption)) -> Map(atom.Atom, Dynamic) {
   let opt_decoder = dynamic.tuple2(dynamic.dynamic, dynamic.dynamic)
 
@@ -107,13 +111,14 @@ pub fn merge_with_default_options(options: List(TcpOption)) -> List(TcpOption) {
   let overrides = opts_to_map(options)
 
   [
-    // Backlog(4096),
-    // Nodelay(True),
-    // Linger(#(True, 30)),
-    // SendTimeout(30_000),
-    // SendTimeoutClose(True),
-    // Reuseaddr(True),
+    Backlog(1024),
+    Nodelay(True),
+    Linger(#(True, 30)),
+    SendTimeout(30_000),
+    SendTimeoutClose(True),
+    Reuseaddr(gleam.True),
     Binary,
+    Active(dynamic.from(False)),
   ]
   // Active(False),
   |> opts_to_map
@@ -138,6 +143,12 @@ pub fn receive(socket: Socket) -> Result(BitString, SocketReason) {
 
 pub type Acceptor {
   AcceptConnection(ListenSocket)
+}
+
+pub type AcceptorError {
+  AcceptError
+  HandlerError
+  ControlError
 }
 
 pub type HandlerMessage {
@@ -187,8 +198,21 @@ pub fn start_handler(
         })
       actor.Ready(socket, Some(socket_receiver))
     },
-    init_timeout: 1_000,
-    loop: loop,
+    init_timeout: 1000,
+    loop: fn(msg, sock) {
+      let resp = loop(msg, sock)
+      case resp {
+        actor.Continue(sock) as res -> {
+          assert Ok(Nil) =
+            set_opts(
+              sock,
+              [Active(dynamic.from(atom.create_from_string("once")))],
+            )
+          res
+        }
+        res -> res
+      }
+    },
   ))
 }
 
@@ -209,12 +233,20 @@ pub fn start_acceptor(
       let AcceptorState(sender, ..) = state
       case msg {
         AcceptConnection(listener) -> {
-          assert Ok(sock) = accept(listener)
-          assert Ok(start) = start_handler(sock, loop_fn)
-          let res = controlling_process(sock, process.pid(start))
+          let res = {
+            try sock =
+              accept(listener)
+              |> result.replace_error(AcceptError)
+            try start =
+              start_handler(sock, loop_fn)
+              |> result.replace_error(HandlerError)
+            sock
+            |> controlling_process(process.pid(start))
+            |> result.replace_error(ControlError)
+          }
           case res {
             Error(reason) -> actor.Stop(Abnormal(dynamic.from(reason)))
-            _ -> {
+            _val -> {
               actor.send(sender, AcceptConnection(listener))
               actor.Continue(state)
             }
@@ -251,7 +283,7 @@ pub fn start_acceptor_pool(
   let _ =
     supervisor.start_spec(supervisor.Spec(
       argument: Nil,
-      max_frequency: 5,
+      max_frequency: 100,
       frequency_period: 1,
       init: fn(children) {
         iterator.range(from: 0, to: pool_count)

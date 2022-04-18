@@ -176,12 +176,11 @@ pub fn make_handler(handler: HttpHandler) -> LoopFn {
         io.print("this should not happen")
         actor.Continue(sock)
       }
-      TcpClosed(_) -> {
-        // actor.Continue(sock)
+      TcpClosed(_msg) -> // actor.Continue(sock)
         // io.println("closed")
-        actor.Continue(sock)
-        // actor.Stop(process.Normal)
-      }
+        // io.debug(msg)
+        // actor.Continue(sock)
+        actor.Stop(process.Normal)
       ReceiveMessage(data) -> {
         case parse_request(
           data
@@ -204,8 +203,6 @@ pub fn make_handler(handler: HttpHandler) -> LoopFn {
               |> to_string
               |> bit_string.to_string
             assert Ok(Nil) = send(sock, charlist.from_string(error))
-            // io.print("sent error on socket")
-            // io.debug(res)
           }
         }
         // actor.Continue(sock)
