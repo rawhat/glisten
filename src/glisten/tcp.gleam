@@ -13,6 +13,7 @@ import gleam/pair
 import gleam/result
 import gleam
 
+/// Options for the TCP socket
 pub type TcpOption {
   Backlog(Int)
   Nodelay(Bool)
@@ -90,6 +91,7 @@ pub fn shutdown(socket: Socket) {
   do_shutdown(socket, write)
 }
 
+/// Update the options for a socket (mutates the socket)
 pub external fn set_opts(
   socket: Socket,
   opts: List(TcpOption),
@@ -126,7 +128,8 @@ pub fn merge_with_default_options(options: List(TcpOption)) -> List(TcpOption) {
   |> list.map(dynamic.unsafe_coerce)
 }
 
-pub fn listen_tcp(
+/// Start listening over TCP on a port with the given options
+pub fn listen(
   port: Int,
   options: List(TcpOption),
 ) -> Result(ListenSocket, SocketReason) {
@@ -180,6 +183,7 @@ pub fn echo_loop(
   actor.Continue(state)
 }
 
+/// Starts an actor for the TCP connection
 pub fn start_handler(
   socket: Socket,
   loop: LoopFn,
@@ -214,6 +218,8 @@ pub fn start_handler(
   ))
 }
 
+/// Worker process that handles `accept`ing connections and starts a new process
+/// which receives the messages from the socket
 pub fn start_acceptor(
   socket: ListenSocket,
   loop_fn: LoopFn,
@@ -273,6 +279,9 @@ pub fn receiver_to_iterator(receiver: Receiver(a)) -> Iterator(a) {
   )
 }
 
+/// Starts a pool of acceptors of size `pool_count`.
+///
+/// Runs `loop_fn` on ever message received
 pub fn start_acceptor_pool(
   listener_socket: ListenSocket,
   handler: LoopFn,
