@@ -15,7 +15,7 @@ import gleam/otp/process
 import gleam/result
 import gleam/string
 import glisten/tcp.{
-  HandlerMessage, LoopFn, ReceiveMessage, Socket, Tcp, TcpClosed, send,
+  HandlerMessage, LoopFn, ReceiveMessage, SendMessage, Socket, Tcp, TcpClosed, send,
 }
 
 pub type PacketType {
@@ -168,8 +168,9 @@ pub type HttpHandler =
 pub fn make_handler(handler: HttpHandler) -> LoopFn {
   fn(msg, sock) {
     case msg {
-      Tcp(_, _) -> {
+      Tcp(_, _) | SendMessage(_data) -> {
         io.print("this should not happen")
+        io.debug(msg)
         actor.Continue(sock)
       }
       TcpClosed(_msg) -> actor.Stop(process.Normal)

@@ -151,6 +151,7 @@ pub type AcceptorError {
 
 pub type HandlerMessage {
   ReceiveMessage(Charlist)
+  SendMessage(Charlist)
   Tcp(socket: Port, data: Charlist)
   TcpClosed(Nil)
 }
@@ -162,8 +163,24 @@ pub type AcceptorState {
   AcceptorState(sender: Sender(Acceptor), socket: Option(Socket))
 }
 
+
 pub type LoopFn =
   fn(HandlerMessage, Socket) -> actor.Next(Socket)
+
+pub type Handler =
+  fn(Sender(HandlerMessage), Socket) -> Sender(HandlerMessage)
+
+pub type TcpHandler {
+  TcpHandler(channel: Option(Handler), loop_fn: LoopFn)
+}
+
+pub fn make_handler(channel: Handler, loop_fn: LoopFn) -> TcpHandler {
+  TcpHandler(Some(channel), loop_fn)
+}
+
+pub fn make_receiver(loop_fn: LoopFn) -> TcpHandler {
+  TcpHandler(None, loop_fn)
+}
 
 pub fn echo_loop(
   msg: HandlerMessage,
@@ -182,41 +199,54 @@ pub fn echo_loop(
 
 pub fn start_handler(
   socket: Socket,
-  loop: LoopFn,
+  handler: TcpHandler,
 ) -> Result(Sender(HandlerMessage), actor.StartError) {
-  actor.start_spec(actor.Spec(
-    init: fn() {
-      let socket_receiver =
-        process.bare_message_receiver()
-        |> process.map_receiver(fn(msg) {
-          case dynamic.unsafe_coerce(msg) {
-            Tcp(_sock, data) -> ReceiveMessage(data)
-            message -> message
+  try sender =
+    actor.start_spec(actor.Spec(
+      init: fn() {
+        let socket_receiver =
+          process.bare_message_receiver()
+          |> process.map_receiver(fn(msg) {
+            case dynamic.unsafe_coerce(msg) {
+              Tcp(_sock, data) -> ReceiveMessage(data)
+              message -> message
+            }
+          })
+        actor.Ready(socket, Some(socket_receiver))
+      },
+      init_timeout: 1000,
+      loop: fn(msg, sock) {
+        case msg {
+          SendMessage(data) -> {
+            assert Ok(Nil) = send(socket, data)
+            actor.Continue(sock)
           }
-        })
-      actor.Ready(socket, Some(socket_receiver))
-    },
-    init_timeout: 1000,
-    loop: fn(msg, sock) {
-      let resp = loop(msg, sock)
-      case resp {
-        actor.Continue(sock) as res -> {
-          assert Ok(Nil) =
-            set_opts(
-              sock,
-              [Active(dynamic.from(atom.create_from_string("once")))],
-            )
-          res
+          _ -> {
+            let resp = handler.loop_fn(msg, sock)
+            case resp {
+              actor.Continue(sock) as res -> {
+                assert Ok(Nil) =
+                  set_opts(
+                    sock,
+                    [Active(dynamic.from(atom.create_from_string("once")))],
+                  )
+                res
+              }
+              res -> res
+            }
+          }
         }
-        res -> res
-      }
-    },
-  ))
+      },
+    ))
+
+  sender
+  |> handler(socket)
+  |> Ok
 }
 
 pub fn start_acceptor(
   socket: ListenSocket,
-  loop_fn: LoopFn,
+  handler: TcpHandler,
 ) -> Result(Sender(Acceptor), actor.StartError) {
   actor.start_spec(actor.Spec(
     init: fn() {
@@ -236,7 +266,7 @@ pub fn start_acceptor(
               accept(listener)
               |> result.replace_error(AcceptError)
             try start =
-              start_handler(sock, loop_fn)
+              start_handler(sock, handler)
               |> result.replace_error(HandlerError)
             sock
             |> controlling_process(process.pid(start))
@@ -275,7 +305,7 @@ pub fn receiver_to_iterator(receiver: Receiver(a)) -> Iterator(a) {
 
 pub fn start_acceptor_pool(
   listener_socket: ListenSocket,
-  handler: LoopFn,
+  handler: TcpHandler,
   pool_count: Int,
 ) -> Result(Nil, Nil) {
   let _ =
@@ -290,7 +320,9 @@ pub fn start_acceptor_pool(
           fn(children, _index) {
             add(
               children,
-              worker(fn(_arg) { start_acceptor(listener_socket, handler) }),
+              worker(fn(_arg) {
+                start_acceptor(listener_socket, handler)
+              }),
             )
           },
         )
