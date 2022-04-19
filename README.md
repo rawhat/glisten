@@ -27,9 +27,21 @@ You can kind of do whatever you want.
 I didn't test this, to be honest.  I think this should work?
 
 ```gleam
-try listener = glisten.listen(8000, [Active(False |> dynamic.from |> dynamic.coerce_unsafe)])
-try socket = glisten.accept(listener)
-try msg = glisten.do_receive(socket, 0)
+try listener =
+  tcp.listen(
+    8000,
+    [
+      tcp.Active(
+        False
+        |> dynamic.from
+        |> dynamic.unsafe_coerce,
+      ),
+    ],
+  )
+try socket = tcp.accept(listener)
+try msg = tcp.do_receive(socket, 0)
+io.println("got a msg")
+io.debug(msg)
 ```
 
 See [dew](https://github.com/rawhat/dew) for some better examples.
