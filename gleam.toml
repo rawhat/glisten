@@ -1,5 +1,7 @@
 name = "glisten"
 version = "0.1.0"
+description = "a shiny gleam webserver"
+licences = ["Apache-2.0"]
 
 # Fill out these fields if you intend to generate HTML documentation or publish
 # your project to the Hex package manager.
