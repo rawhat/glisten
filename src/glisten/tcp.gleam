@@ -198,6 +198,11 @@ pub fn start_handler(
             message -> message
           }
         })
+      assert Ok(_) =
+        set_opts(
+          socket,
+          [Active(dynamic.from(atom.create_from_string("once")))],
+        )
       actor.Ready(socket, Some(socket_receiver))
     },
     init_timeout: 1000,
