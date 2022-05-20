@@ -1,6 +1,7 @@
+import gleam/bit_builder.{BitBuilder}
 import gleam/dynamic.{Dynamic}
 import gleam/erlang/atom.{Atom}
-import gleam/erlang/charlist.{Charlist}
+import gleam/io
 import gleam/iterator.{Iterator, Next}
 import gleam/list
 import gleam/map.{Map}
@@ -41,7 +42,7 @@ pub opaque type Socket {
 }
 
 external fn controlling_process(socket: Socket, pid: Pid) -> Result(Nil, Atom) =
-  "glisten_ffi" "controlling_process"
+  "tcp_ffi" "controlling_process"
 
 pub external fn do_listen_tcp(
   port: Int,
@@ -73,9 +74,9 @@ pub external fn do_receive(
 
 pub external fn send(
   socket: Socket,
-  packet: Charlist,
+  packet: BitBuilder,
 ) -> Result(Nil, SocketReason) =
-  "glisten_ffi" "send"
+  "tcp_ffi" "send"
 
 pub external fn socket_info(socket: Socket) -> Map(a, b) =
   "socket" "info"
@@ -96,7 +97,7 @@ pub external fn set_opts(
   socket: Socket,
   opts: List(TcpOption),
 ) -> Result(Nil, Nil) =
-  "glisten_ffi" "set_opts"
+  "tcp_ffi" "set_opts"
 
 fn opts_to_map(options: List(TcpOption)) -> Map(atom.Atom, Dynamic) {
   let opt_decoder = dynamic.tuple2(dynamic.dynamic, dynamic.dynamic)
@@ -153,8 +154,8 @@ pub type AcceptorError {
 }
 
 pub type HandlerMessage {
-  ReceiveMessage(Charlist)
-  Tcp(socket: Port, data: Charlist)
+  ReceiveMessage(BitString)
+  Tcp(socket: Port, data: BitBuilder)
   TcpClosed(Nil)
 }
 
@@ -165,8 +166,8 @@ pub type AcceptorState {
   AcceptorState(sender: Sender(Acceptor), socket: Option(Socket))
 }
 
-pub type LoopFn =
-  fn(HandlerMessage, Socket) -> actor.Next(Socket)
+pub type LoopFn(data) =
+  fn(HandlerMessage, #(Socket, data)) -> actor.Next(#(Socket, data))
 
 pub fn echo_loop(
   msg: HandlerMessage,
@@ -174,7 +175,7 @@ pub fn echo_loop(
 ) -> actor.Next(AcceptorState) {
   case msg, state {
     ReceiveMessage(data), AcceptorState(socket: Some(sock), ..) -> {
-      let _ = send(sock, data)
+      let _ = send(sock, bit_builder.from_bit_string(data))
       Nil
     }
     _, _ -> Nil
@@ -186,7 +187,8 @@ pub fn echo_loop(
 /// Starts an actor for the TCP connection
 pub fn start_handler(
   socket: Socket,
-  loop: LoopFn,
+  initial_data: data,
+  loop: LoopFn(data),
 ) -> Result(Sender(HandlerMessage), actor.StartError) {
   actor.start_spec(actor.Spec(
     init: fn() {
@@ -194,7 +196,10 @@ pub fn start_handler(
         process.bare_message_receiver()
         |> process.map_receiver(fn(msg) {
           case dynamic.unsafe_coerce(msg) {
-            Tcp(_sock, data) -> ReceiveMessage(data)
+            Tcp(_sock, data) ->
+              data
+              |> bit_builder.to_bit_string
+              |> ReceiveMessage
             message -> message
           }
         })
@@ -203,21 +208,30 @@ pub fn start_handler(
           socket,
           [Active(dynamic.from(atom.create_from_string("once")))],
         )
-      actor.Ready(socket, Some(socket_receiver))
+      actor.Ready(#(socket, initial_data), Some(socket_receiver))
     },
     init_timeout: 1000,
-    loop: fn(msg, sock) {
-      let resp = loop(msg, sock)
-      case resp {
-        actor.Continue(sock) as res -> {
-          assert Ok(Nil) =
-            set_opts(
-              sock,
-              [Active(dynamic.from(atom.create_from_string("once")))],
-            )
-          res
+    loop: fn(msg, state) {
+      let #(socket, _state) = state
+      case msg {
+        TcpClosed(_) -> {
+          io.println("CLOSING")
+          // assert Ok(Nil) =
+          //   set_opts(
+          //     socket,
+          //     [Active(dynamic.from(atom.create_from_string("once")))],
+          //   )
+          actor.Continue(state)
         }
-        res -> res
+        msg ->
+          case loop(msg, state) {
+            actor.Continue(next_state) -> {
+              assert Ok(Nil) = set_opts(socket, [Active(dynamic.from(100))])
+              // let data = do_receive(socket, 0)
+              actor.Continue(next_state)
+            }
+            msg -> msg
+          }
       }
     },
   ))
@@ -227,7 +241,8 @@ pub fn start_handler(
 /// which receives the messages from the socket
 pub fn start_acceptor(
   socket: ListenSocket,
-  loop_fn: LoopFn,
+  initial_data: data,
+  loop_fn: LoopFn(data),
 ) -> Result(Sender(Acceptor), actor.StartError) {
   actor.start_spec(actor.Spec(
     init: fn() {
@@ -247,7 +262,7 @@ pub fn start_acceptor(
               accept(listener)
               |> result.replace_error(AcceptError)
             try start =
-              start_handler(sock, loop_fn)
+              start_handler(sock, initial_data, loop_fn)
               |> result.replace_error(HandlerError)
             sock
             |> controlling_process(process.pid(start))
@@ -289,27 +304,44 @@ pub fn receiver_to_iterator(receiver: Receiver(a)) -> Iterator(a) {
 /// Runs `loop_fn` on ever message received
 pub fn start_acceptor_pool(
   listener_socket: ListenSocket,
-  handler: LoopFn,
+  handler: LoopFn(data),
+  initial_data: data,
   pool_count: Int,
-) -> Result(Nil, Nil) {
-  let _ =
-    supervisor.start_spec(supervisor.Spec(
-      argument: Nil,
-      max_frequency: 100,
-      frequency_period: 1,
-      init: fn(children) {
-        iterator.range(from: 0, to: pool_count)
-        |> iterator.fold(
-          children,
-          fn(children, _index) {
-            add(
-              children,
-              worker(fn(_arg) { start_acceptor(listener_socket, handler) }),
-            )
-          },
-        )
-      },
-    ))
+) -> Result(Nil, actor.StartError) {
+  supervisor.start_spec(supervisor.Spec(
+    argument: Nil,
+    max_frequency: 100,
+    frequency_period: 1,
+    init: fn(children) {
+      iterator.range(from: 0, to: pool_count)
+      |> iterator.fold(
+        children,
+        fn(children, _index) {
+          add(
+            children,
+            worker(fn(_arg) {
+              start_acceptor(listener_socket, initial_data, handler)
+            }),
+          )
+        },
+      )
+    },
+  ))
+  |> result.replace(Nil)
+}
 
-  Ok(Nil)
+pub type HandlerFunc(state) =
+  fn(BitString, #(Socket, state)) -> actor.Next(#(Socket, state))
+
+pub fn handler(handler func: HandlerFunc(state)) -> LoopFn(state) {
+  fn(msg, state) {
+    case msg {
+      Tcp(_, _) -> {
+        io.debug(#("Received an unexpected TCP message", msg))
+        actor.Continue(state)
+      }
+      TcpClosed(_msg) -> actor.Stop(process.Normal)
+      ReceiveMessage(data) -> func(data, state)
+    }
+  }
 }

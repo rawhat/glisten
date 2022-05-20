@@ -1,6 +1,6 @@
 # glisten
 
-This is a gleam wrapper around `gen_tcp` loosely based on [ThousandIsland](https://github.com/mtrudel/thousand_island).
+This is a Gleam wrapper around `gen_tcp` loosely based on [ThousandIsland](https://github.com/mtrudel/thousand_island).
 
 It uses the `gleam_otp` library to handle the supervisor and child processes.
 
@@ -9,39 +9,51 @@ manages a pool of acceptors.  Each acceptor will block on `accept` until a
 connection is opened.  The acceptor will then spawn a handler process and
 then block again on `accept`.
 
-The handler function loops on messages received from the socket.  You can define
-a handler with a function of the following type:
+The most obvious entrypoint is `glisten/tcp.{handler, serve}` where `serve`
+listens for TCP connections on a given port.  It also takes a handler function
+wrapper which you can provide functionality to, and the state which each TCP
+connection process will hold.  This takes the shape of:
 
 ```gleam
-fn(HandlerMessage, Socket) -> actor.Next(Socket)
+type Handler =
+  fn(BitString, #(tcp.Socket, state)) -> actor.Next(#(tcp.Socket, state))
 ```
-
-This gives you access to the socket if you want to `send` to it in response.  I
-think right now I don't have this set up where you can send to the socket
-unprovoked?  So that seems like something I'll need to change... imminently.
 
 ## Examples
 
-You can kind of do whatever you want.
-
-I didn't test this, to be honest.  I think this should work?
+Here is a basic echo server:
 
 ```gleam
-try listener =
-  tcp.listen(
-    8000,
-    [
-      tcp.Active(
-        False
-        |> dynamic.from
-        |> dynamic.unsafe_coerce,
-      ),
-    ],
-  )
-try socket = tcp.accept(listener)
-try msg = tcp.do_receive(socket, 0)
-io.println("got a msg")
-io.debug(msg)
+pub fn main() {
+  assert Ok(_) = serve(8080, tcp.handler(fn(msg, state) {
+    let #(socket, _state) = state
+    assert Ok(_) = tcp.send(socket, bit_builder.from_bit_string(msg))
+    actor.Continue(state)
+  }), Nil)
+  erlang.sleep_forever()
+}
 ```
 
-See [dew](https://github.com/rawhat/dew) for some better examples.
+But you can also do whatever you want.
+
+```gleam
+pub fn main() {
+  try listener =
+    tcp.listen(
+      8000,
+      [
+        tcp.Active(
+          False
+          |> dynamic.from
+          |> dynamic.unsafe_coerce,
+        ),
+      ],
+    )
+  try socket = tcp.accept(listener)
+  try msg = tcp.do_receive(socket, 0)
+  io.println("got a msg")
+  io.debug(msg)
+}
+```
+
+See [mist](https://github.com/rawhat/mist) for some better examples.
