@@ -215,19 +215,14 @@ pub fn start_handler(
       let #(socket, _state) = state
       case msg {
         TcpClosed(_) -> {
+          // TODO:  is this right?  probably not
           io.println("CLOSING")
-          // assert Ok(Nil) =
-          //   set_opts(
-          //     socket,
-          //     [Active(dynamic.from(atom.create_from_string("once")))],
-          //   )
           actor.Continue(state)
         }
         msg ->
           case loop(msg, state) {
             actor.Continue(next_state) -> {
-              assert Ok(Nil) = set_opts(socket, [Active(dynamic.from(100))])
-              // let data = do_receive(socket, 0)
+              assert Ok(Nil) = set_opts(socket, [Active(dynamic.from("once"))])
               actor.Continue(next_state)
             }
             msg -> msg
@@ -252,6 +247,7 @@ pub fn start_acceptor(
 
       actor.Ready(AcceptorState(sender, None), Some(actor_receiver))
     },
+    // TODO:  rethink this value, probably...
     init_timeout: 30_000_000,
     loop: fn(msg, state) {
       let AcceptorState(sender, ..) = state
@@ -310,6 +306,7 @@ pub fn start_acceptor_pool(
 ) -> Result(Nil, actor.StartError) {
   supervisor.start_spec(supervisor.Spec(
     argument: Nil,
+    // TODO:  i think these might need some tweaking
     max_frequency: 100,
     frequency_period: 1,
     init: fn(children) {
