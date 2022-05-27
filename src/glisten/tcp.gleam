@@ -12,7 +12,6 @@ import gleam/otp/process.{Abnormal, Pid, Receiver, Sender}
 import gleam/otp/supervisor.{add, worker}
 import gleam/pair
 import gleam/result
-import gleam
 
 /// Options for the TCP socket
 pub type TcpOption {
@@ -118,7 +117,7 @@ pub fn merge_with_default_options(options: List(TcpOption)) -> List(TcpOption) {
     Linger(#(True, 30)),
     SendTimeout(30_000),
     SendTimeoutClose(True),
-    Reuseaddr(gleam.True),
+    Reuseaddr(True),
     Binary,
     Active(dynamic.from(False)),
   ]
@@ -154,6 +153,7 @@ pub type AcceptorError {
 }
 
 pub type HandlerMessage {
+  Ready
   ReceiveMessage(BitString)
   Tcp(socket: Port, data: BitBuilder)
   TcpClosed(Nil)
@@ -192,6 +192,7 @@ pub fn start_handler(
 ) -> Result(Sender(HandlerMessage), actor.StartError) {
   actor.start_spec(actor.Spec(
     init: fn() {
+      let #(_sender, receiver) = process.new_channel()
       let socket_receiver =
         process.bare_message_receiver()
         |> process.map_receiver(fn(msg) {
@@ -203,20 +204,20 @@ pub fn start_handler(
             message -> message
           }
         })
-      assert Ok(_) =
-        set_opts(
-          socket,
-          [Active(dynamic.from(atom.create_from_string("once")))],
-        )
+        |> process.merge_receiver(receiver)
       actor.Ready(#(socket, initial_data), Some(socket_receiver))
     },
-    init_timeout: 1000,
+    init_timeout: 1_000,
     loop: fn(msg, state) {
       let #(socket, _state) = state
       case msg {
-        TcpClosed(_) -> {
-          // TODO:  is this right?  probably not
-          io.println("CLOSING")
+        TcpClosed(_) -> actor.Stop(process.Normal)
+        Ready -> {
+          assert Ok(_) =
+            set_opts(
+              socket,
+              [Active(dynamic.from(atom.create_from_string("once")))],
+            )
           actor.Continue(state)
         }
         msg ->
@@ -247,8 +248,7 @@ pub fn start_acceptor(
 
       actor.Ready(AcceptorState(sender, None), Some(actor_receiver))
     },
-    // TODO:  rethink this value, probably...
-    init_timeout: 30_000_000,
+    init_timeout: 1_000,
     loop: fn(msg, state) {
       let AcceptorState(sender, ..) = state
       case msg {
@@ -263,6 +263,7 @@ pub fn start_acceptor(
             sock
             |> controlling_process(process.pid(start))
             |> result.replace_error(ControlError)
+            |> result.map(fn(_) { process.send(start, Ready) })
           }
           case res {
             Error(reason) -> actor.Stop(Abnormal(dynamic.from(reason)))
@@ -272,6 +273,7 @@ pub fn start_acceptor(
             }
           }
         }
+        msg -> actor.Stop(process.Abnormal(dynamic.from(msg)))
       }
     },
   ))
@@ -333,7 +335,7 @@ pub type HandlerFunc(state) =
 pub fn handler(handler func: HandlerFunc(state)) -> LoopFn(state) {
   fn(msg, state) {
     case msg {
-      Tcp(_, _) -> {
+      Tcp(_, _) | Ready -> {
         io.debug(#("Received an unexpected TCP message", msg))
         actor.Continue(state)
       }
