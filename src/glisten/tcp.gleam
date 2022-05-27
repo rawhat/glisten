@@ -58,17 +58,17 @@ pub external fn accept_timeout(
 pub external fn accept(socket: ListenSocket) -> Result(Socket, SocketReason) =
   "gen_tcp" "accept"
 
-external fn do_receive_timeout(
+pub external fn receive_timeout(
   socket: Socket,
   length: Int,
   timeout: Int,
-) -> Result(BitString, SocketReason) =
+) -> Result(BitBuilder, SocketReason) =
   "gen_tcp" "recv"
 
-pub external fn do_receive(
+pub external fn receive(
   socket: Socket,
   length: Int,
-) -> Result(BitString, SocketReason) =
+) -> Result(BitBuilder, SocketReason) =
   "gen_tcp" "recv"
 
 pub external fn send(
@@ -138,10 +138,6 @@ pub fn listen(
   |> do_listen_tcp(port, _)
 }
 
-pub fn receive(socket: Socket) -> Result(BitString, SocketReason) {
-  do_receive(socket, 0)
-}
-
 pub type Acceptor {
   AcceptConnection(ListenSocket)
 }
@@ -153,6 +149,7 @@ pub type AcceptorError {
 }
 
 pub type HandlerMessage {
+  Close
   Ready
   ReceiveMessage(BitString)
   Tcp(socket: Port, data: BitBuilder)
@@ -166,8 +163,12 @@ pub type AcceptorState {
   AcceptorState(sender: Sender(Acceptor), socket: Option(Socket))
 }
 
+pub type LoopState(data) {
+  LoopState(socket: Socket, sender: Sender(HandlerMessage), data: data)
+}
+
 pub type LoopFn(data) =
-  fn(HandlerMessage, #(Socket, data)) -> actor.Next(#(Socket, data))
+  fn(HandlerMessage, LoopState(data)) -> actor.Next(LoopState(data))
 
 pub fn echo_loop(
   msg: HandlerMessage,
@@ -192,7 +193,7 @@ pub fn start_handler(
 ) -> Result(Sender(HandlerMessage), actor.StartError) {
   actor.start_spec(actor.Spec(
     init: fn() {
-      let #(_sender, receiver) = process.new_channel()
+      let #(sender, receiver) = process.new_channel()
       let socket_receiver =
         process.bare_message_receiver()
         |> process.map_receiver(fn(msg) {
@@ -205,11 +206,13 @@ pub fn start_handler(
           }
         })
         |> process.merge_receiver(receiver)
-      actor.Ready(#(socket, initial_data), Some(socket_receiver))
+      actor.Ready(
+        LoopState(socket, sender, data: initial_data),
+        Some(socket_receiver),
+      )
     },
     init_timeout: 1_000,
     loop: fn(msg, state) {
-      let #(socket, _state) = state
       case msg {
         TcpClosed(_) -> actor.Stop(process.Normal)
         Ready -> {
@@ -223,7 +226,11 @@ pub fn start_handler(
         msg ->
           case loop(msg, state) {
             actor.Continue(next_state) -> {
-              assert Ok(Nil) = set_opts(socket, [Active(dynamic.from("once"))])
+              assert Ok(Nil) =
+                set_opts(
+                  socket,
+                  [Active(dynamic.from(atom.create_from_string("once")))],
+                )
               actor.Continue(next_state)
             }
             msg -> msg
@@ -248,6 +255,7 @@ pub fn start_acceptor(
 
       actor.Ready(AcceptorState(sender, None), Some(actor_receiver))
     },
+    // TODO:  rethink this value, probably...
     init_timeout: 1_000,
     loop: fn(msg, state) {
       let AcceptorState(sender, ..) = state
@@ -277,13 +285,6 @@ pub fn start_acceptor(
       }
     },
   ))
-}
-
-pub fn receive_timeout(
-  socket: Socket,
-  timeout: Int,
-) -> Result(BitString, SocketReason) {
-  do_receive_timeout(socket, 0, timeout)
 }
 
 pub fn receiver_to_iterator(receiver: Receiver(a)) -> Iterator(a) {
@@ -330,14 +331,18 @@ pub fn start_acceptor_pool(
 }
 
 pub type HandlerFunc(state) =
-  fn(BitString, #(Socket, state)) -> actor.Next(#(Socket, state))
+  fn(BitString, LoopState(state)) -> actor.Next(LoopState(state))
 
 pub fn handler(handler func: HandlerFunc(state)) -> LoopFn(state) {
-  fn(msg, state) {
+  fn(msg, state: LoopState(state)) {
     case msg {
       Tcp(_, _) | Ready -> {
         io.debug(#("Received an unexpected TCP message", msg))
         actor.Continue(state)
+      }
+      Close -> {
+        close(state.socket)
+        actor.Stop(process.Normal)
       }
       TcpClosed(_msg) -> actor.Stop(process.Normal)
       ReceiveMessage(data) -> func(data, state)
