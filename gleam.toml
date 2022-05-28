@@ -8,6 +8,7 @@ repository = { type = "github", user = "rawhat", repo = "glisten" }
 gleam_stdlib = "~> 0.20"
 gleam_otp = "~> 0.4"
 gleam_http = "~> 3.0"
+gleam_erlang = "~> 0.9"
 
 [dev-dependencies]
 gleeunit = "~> 0.6"

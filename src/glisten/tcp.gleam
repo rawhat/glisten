@@ -13,6 +13,11 @@ import gleam/otp/supervisor.{add, worker}
 import gleam/pair
 import gleam/result
 
+pub type SocketMode {
+  Binary
+  List
+}
+
 /// Options for the TCP socket
 pub type TcpOption {
   Backlog(Int)
@@ -24,7 +29,7 @@ pub type TcpOption {
   // Writing a wrapper for this would make my whole cool function below kind of
   // obsolete.  So I did this!  It's definitely better.
   Active(Dynamic)
-  Binary
+  Mode(SocketMode)
 }
 
 pub type SocketReason {
@@ -62,13 +67,13 @@ pub external fn receive_timeout(
   socket: Socket,
   length: Int,
   timeout: Int,
-) -> Result(BitBuilder, SocketReason) =
+) -> Result(BitString, SocketReason) =
   "gen_tcp" "recv"
 
 pub external fn receive(
   socket: Socket,
   length: Int,
-) -> Result(BitBuilder, SocketReason) =
+) -> Result(BitString, SocketReason) =
   "gen_tcp" "recv"
 
 pub external fn send(
@@ -118,7 +123,7 @@ pub fn merge_with_default_options(options: List(TcpOption)) -> List(TcpOption) {
     SendTimeout(30_000),
     SendTimeoutClose(True),
     Reuseaddr(True),
-    Binary,
+    Mode(Binary),
     Active(dynamic.from(False)),
   ]
   |> opts_to_map
@@ -152,7 +157,7 @@ pub type HandlerMessage {
   Close
   Ready
   ReceiveMessage(BitString)
-  Tcp(socket: Port, data: BitBuilder)
+  Tcp(socket: Port, data: BitString)
   TcpClosed(Nil)
 }
 
@@ -198,10 +203,7 @@ pub fn start_handler(
         process.bare_message_receiver()
         |> process.map_receiver(fn(msg) {
           case dynamic.unsafe_coerce(msg) {
-            Tcp(_sock, data) ->
-              data
-              |> bit_builder.to_bit_string
-              |> ReceiveMessage
+            Tcp(_sock, data) -> ReceiveMessage(data)
             message -> message
           }
         })
