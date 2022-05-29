@@ -308,7 +308,7 @@ pub fn start_acceptor_pool(
   handler: LoopFn(data),
   initial_data: data,
   pool_count: Int,
-) -> Result(Nil, actor.StartError) {
+) -> Result(Sender(supervisor.Message), actor.StartError) {
   supervisor.start_spec(supervisor.Spec(
     argument: Nil,
     // TODO:  i think these might need some tweaking
@@ -329,7 +329,6 @@ pub fn start_acceptor_pool(
       )
     },
   ))
-  |> result.replace(Nil)
 }
 
 pub type HandlerFunc(state) =
