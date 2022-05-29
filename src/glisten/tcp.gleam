@@ -13,9 +13,19 @@ import gleam/otp/supervisor.{add, worker}
 import gleam/pair
 import gleam/result
 
+/// Mode for the socket.  Currently `list` is not supported
 pub type SocketMode {
   Binary
-  List
+}
+
+/// Mapping to the {active, _} option
+pub type ActiveState {
+  Once
+  Passive
+  Count(Int)
+  // This is dumb and annoying. I'd much prefer `True` or `Active`, but both
+  // of those make this a lot more annoying to work with
+  Active
 }
 
 /// Options for the TCP socket
@@ -26,9 +36,7 @@ pub type TcpOption {
   SendTimeout(Int)
   SendTimeoutClose(Bool)
   Reuseaddr(Bool)
-  // Writing a wrapper for this would make my whole cool function below kind of
-  // obsolete.  So I did this!  It's definitely better.
-  Active(Dynamic)
+  ActiveMode(ActiveState)
   Mode(SocketMode)
 }
 
@@ -48,7 +56,7 @@ pub opaque type Socket {
 external fn controlling_process(socket: Socket, pid: Pid) -> Result(Nil, Atom) =
   "tcp_ffi" "controlling_process"
 
-pub external fn do_listen_tcp(
+external fn do_listen_tcp(
   port: Int,
   options: List(TcpOption),
 ) -> Result(ListenSocket, SocketReason) =
@@ -96,24 +104,44 @@ pub fn shutdown(socket: Socket) {
   do_shutdown(socket, write)
 }
 
-/// Update the options for a socket (mutates the socket)
-pub external fn set_opts(
-  socket: Socket,
-  opts: List(TcpOption),
-) -> Result(Nil, Nil) =
+external fn do_set_opts(socket: Socket, opts: List(Dynamic)) -> Result(Nil, Nil) =
   "tcp_ffi" "set_opts"
+
+/// Update the optons for a socket (mutates the socket)
+pub fn set_opts(socket: Socket, opts: List(TcpOption)) -> Result(Nil, Nil) {
+  opts
+  |> opts_to_map
+  |> map.to_list
+  |> list.map(dynamic.from)
+  |> do_set_opts(socket, _)
+}
 
 fn opts_to_map(options: List(TcpOption)) -> Map(atom.Atom, Dynamic) {
   let opt_decoder = dynamic.tuple2(dynamic.dynamic, dynamic.dynamic)
 
   options
-  |> list.map(dynamic.from)
+  |> list.map(fn(opt) {
+    case opt {
+      ActiveMode(Passive) ->
+        dynamic.from(#(atom.create_from_string("active"), False))
+      ActiveMode(Active) ->
+        dynamic.from(#(atom.create_from_string("active"), True))
+      ActiveMode(Count(n)) ->
+        dynamic.from(#(atom.create_from_string("active"), n))
+      ActiveMode(Once) ->
+        dynamic.from(#(
+          atom.create_from_string("active"),
+          atom.create_from_string("once"),
+        ))
+      other -> dynamic.from(other)
+    }
+  })
   |> list.filter_map(opt_decoder)
   |> list.map(pair.map_first(_, dynamic.unsafe_coerce))
   |> map.from_list
 }
 
-pub fn merge_with_default_options(options: List(TcpOption)) -> List(TcpOption) {
+fn merge_with_default_options(options: List(TcpOption)) -> List(TcpOption) {
   let overrides = opts_to_map(options)
 
   [
@@ -124,7 +152,7 @@ pub fn merge_with_default_options(options: List(TcpOption)) -> List(TcpOption) {
     SendTimeoutClose(True),
     Reuseaddr(True),
     Mode(Binary),
-    Active(dynamic.from(False)),
+    ActiveMode(Passive),
   ]
   |> opts_to_map
   |> map.merge(overrides)
@@ -153,6 +181,8 @@ pub type AcceptorError {
   ControlError
 }
 
+/// All message types that the handler will receive, or that you can
+/// send to the handler process
 pub type HandlerMessage {
   Close
   Ready
@@ -218,21 +248,13 @@ pub fn start_handler(
       case msg {
         TcpClosed(_) -> actor.Stop(process.Normal)
         Ready -> {
-          assert Ok(_) =
-            set_opts(
-              socket,
-              [Active(dynamic.from(atom.create_from_string("once")))],
-            )
+          assert Ok(_) = set_opts(socket, [ActiveMode(Once)])
           actor.Continue(state)
         }
         msg ->
           case loop(msg, state) {
             actor.Continue(next_state) -> {
-              assert Ok(Nil) =
-                set_opts(
-                  socket,
-                  [Active(dynamic.from(atom.create_from_string("once")))],
-                )
+              assert Ok(Nil) = set_opts(socket, [ActiveMode(Once)])
               actor.Continue(next_state)
             }
             msg -> msg
@@ -331,11 +353,14 @@ pub fn start_acceptor_pool(
   ))
 }
 
-pub type HandlerFunc(state) =
-  fn(BitString, LoopState(state)) -> actor.Next(LoopState(state))
+pub type HandlerFunc(data) =
+  fn(BitString, LoopState(data)) -> actor.Next(LoopState(data))
 
-pub fn handler(handler func: HandlerFunc(state)) -> LoopFn(state) {
-  fn(msg, state: LoopState(state)) {
+/// This helper will generate a TCP handler that will call your handler function
+/// with the BitString data in the packet as well as the LoopState, with any
+/// associated state data you are maintaining
+pub fn handler(handler func: HandlerFunc(data)) -> LoopFn(data) {
+  fn(msg, state: LoopState(data)) {
     case msg {
       Tcp(_, _) | Ready -> {
         io.debug(#("Received an unexpected TCP message", msg))

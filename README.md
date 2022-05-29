@@ -15,8 +15,8 @@ wrapper which you can provide functionality to, and the state which each TCP
 connection process will hold.  This takes the shape of:
 
 ```gleam
-type Handler =
-  fn(BitString, #(tcp.Socket, state)) -> actor.Next(#(tcp.Socket, state))
+type HandlerFunc(data) =
+  fn(BitString, LoopState(data)) -> actor.Next(LoopState(data))
 ```
 
 ## Examples
@@ -26,8 +26,7 @@ Here is a basic echo server:
 ```gleam
 pub fn main() {
   assert Ok(_) = serve(8080, tcp.handler(fn(msg, state) {
-    let #(socket, _state) = state
-    assert Ok(_) = tcp.send(socket, bit_builder.from_bit_string(msg))
+    assert Ok(_) = tcp.send(state.socket, bit_builder.from_bit_string(msg))
     actor.Continue(state)
   }), Nil)
   erlang.sleep_forever()
@@ -38,22 +37,15 @@ But you can also do whatever you want.
 
 ```gleam
 pub fn main() {
-  try listener =
-    tcp.listen(
-      8000,
-      [
-        tcp.Active(
-          False
-          |> dynamic.from
-          |> dynamic.unsafe_coerce,
-        ),
-      ],
-    )
+  try listener = tcp.listen(8000, [ActiveMode(Passive)])
   try socket = tcp.accept(listener)
-  try msg = tcp.do_receive(socket, 0)
+  try msg = tcp.receive(socket, 0)
   io.println("got a msg")
   io.debug(msg)
+
+  Ok(Nil)
 }
 ```
 
-See [mist](https://github.com/rawhat/mist) for some better examples.
+See [mist](https://github.com/rawhat/mist) for HTTP support built on top of
+this library.
