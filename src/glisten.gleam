@@ -2,7 +2,9 @@ import gleam/dynamic.{Dynamic}
 import gleam/otp/actor
 import gleam/otp/process
 import gleam/result
-import glisten/tcp.{Closed, Timeout, start_acceptor_pool}
+import glisten/tcp.{
+  AcceptorPool, Closed, ListenSocket, Timeout, start_acceptor_pool,
+}
 
 /// Reasons that `serve` might fail
 pub type StartError {
@@ -13,13 +15,11 @@ pub type StartError {
   AcceptorCrashed(Dynamic)
 }
 
-/// Sets up a TCP server listener at the provided port. Also takes the
-/// HttpHandler, which holds the handler function.  There are currently two
-/// options for ease of use: `http.handler` and `ws.handler`.
+/// Sets up a TCP listener with the given acceptor pool. The second argument
+/// can be obtained from the `glisten/tcp.{acceptor_pool}` function.
 pub fn serve(
   port: Int,
-  handler: tcp.LoopFn(state),
-  initial_state: state,
+  with_pool: fn(ListenSocket) -> AcceptorPool(data),
 ) -> Result(Nil, StartError) {
   try _ =
     port
@@ -32,7 +32,8 @@ pub fn serve(
     })
     |> result.then(fn(socket) {
       socket
-      |> start_acceptor_pool(handler, initial_state, 10)
+      |> with_pool
+      |> start_acceptor_pool
       |> result.map_error(fn(err) {
         case err {
           actor.InitTimeout -> AcceptorTimeout
