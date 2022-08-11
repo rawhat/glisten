@@ -370,6 +370,23 @@ pub fn acceptor_pool(
   }
 }
 
+/// Initialize an acceptor pool where each handler holds some state
+pub fn acceptor_pool_with_data(
+  handler: LoopFn(data),
+  initial_data: data,
+) -> fn(ListenSocket) -> AcceptorPool(data) {
+  fn(listener_socket) {
+    AcceptorPool(
+      listener_socket: listener_socket,
+      handler: handler,
+      initial_data: initial_data,
+      pool_count: 10,
+      on_init: None,
+      on_close: None,
+    )
+  }
+}
+
 /// Add an `on_init` handler to the acceptor pool
 pub fn with_init(
   make_pool: fn(ListenSocket) -> AcceptorPool(data),
