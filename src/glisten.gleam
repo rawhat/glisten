@@ -1,6 +1,6 @@
 import gleam/dynamic.{Dynamic}
+import gleam/erlang/process
 import gleam/otp/actor
-import gleam/otp/process
 import gleam/result
 import glisten/tcp.{
   AcceptorPool, Closed, ListenSocket, Timeout, start_acceptor_pool,

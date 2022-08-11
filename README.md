@@ -37,7 +37,7 @@ pub fn main() {
   })
   |> tcp.acceptor_pool
   |> serve(8080, _)
-  |> result.map(fn(_) { erlang.sleep_forever() })
+  |> result.map(fn(_) { process.sleep_forever() })
 }
 ```
 
@@ -66,7 +66,7 @@ pub fn main() {
     Nil
   })
   |> serve(8080, _)
-  |> result.map(fn(_) { erlang.sleep_forever() })
+  |> result.map(fn(_) { process.sleep_forever() })
 }
 ```
 

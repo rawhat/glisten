@@ -1,13 +1,14 @@
 import gleam/bit_builder.{BitBuilder}
 import gleam/dynamic.{Dynamic}
 import gleam/erlang/atom.{Atom}
-import gleam/iterator.{Iterator, Next}
+import gleam/erlang/process.{Abnormal, Pid, Subject}
+import gleam/iterator
+import gleam/function
 import gleam/list
 import gleam/map.{Map}
 import gleam/option.{None, Option, Some}
 import gleam/otp/actor
 import gleam/otp/port.{Port}
-import gleam/otp/process.{Abnormal, Pid, Receiver, Sender}
 import gleam/otp/supervisor.{add, worker}
 import gleam/pair
 import gleam/result
@@ -93,7 +94,7 @@ pub external fn send(
 pub external fn socket_info(socket: Socket) -> Map(a, b) =
   "socket" "info"
 
-pub external fn close(socket: Socket) -> Atom =
+pub external fn close(socket: a) -> Atom =
   "gen_tcp" "close"
 
 pub external fn do_shutdown(socket: Socket, write: Atom) -> Nil =
@@ -193,11 +194,11 @@ pub type HandlerMessage {
 }
 
 pub type AcceptorState {
-  AcceptorState(sender: Sender(AcceptorMessage), socket: Option(Socket))
+  AcceptorState(sender: Subject(AcceptorMessage), socket: Option(Socket))
 }
 
 pub type LoopState(data) {
-  LoopState(socket: Socket, sender: Sender(HandlerMessage), data: data)
+  LoopState(socket: Socket, sender: Subject(HandlerMessage), data: data)
 }
 
 pub type LoopFn(data) =
@@ -223,34 +224,34 @@ pub type Handler(data) {
     socket: Socket,
     initial_data: data,
     loop: LoopFn(data),
-    on_init: Option(fn(Sender(HandlerMessage)) -> Nil),
-    on_close: Option(fn(Sender(HandlerMessage)) -> Nil),
+    on_init: Option(fn(Subject(HandlerMessage)) -> Nil),
+    on_close: Option(fn(Subject(HandlerMessage)) -> Nil),
   )
 }
 
 /// Starts an actor for the TCP connection
 pub fn start_handler(
   handler: Handler(data),
-) -> Result(Sender(HandlerMessage), actor.StartError) {
+) -> Result(Subject(HandlerMessage), actor.StartError) {
   actor.start_spec(actor.Spec(
     init: fn() {
-      let #(sender, receiver) = process.new_channel()
-      let socket_receiver =
-        process.bare_message_receiver()
-        |> process.map_receiver(fn(msg) {
+      let subject = process.new_subject()
+      let selector =
+        process.new_selector()
+        |> process.selecting(subject, function.identity)
+        |> process.selecting_anything(fn(msg) {
           case dynamic.unsafe_coerce(msg) {
             Tcp(_sock, data) -> ReceiveMessage(data)
-            message -> message
+            msg -> msg
           }
         })
-        |> process.merge_receiver(receiver)
       let _ = case handler.on_init {
-        Some(func) -> func(sender)
+        Some(func) -> func(subject)
         _ -> Nil
       }
       actor.Ready(
-        LoopState(handler.socket, sender, data: handler.initial_data),
-        Some(socket_receiver),
+        LoopState(handler.socket, subject, data: handler.initial_data),
+        selector,
       )
     },
     init_timeout: 1_000,
@@ -285,14 +286,17 @@ pub fn start_handler(
 /// which receives the messages from the socket
 pub fn start_acceptor(
   pool: AcceptorPool(data),
-) -> Result(Sender(AcceptorMessage), actor.StartError) {
+) -> Result(Subject(AcceptorMessage), actor.StartError) {
   actor.start_spec(actor.Spec(
     init: fn() {
-      let #(sender, actor_receiver) = process.new_channel()
+      let subject = process.new_subject()
+      let selector =
+        process.new_selector()
+        |> process.selecting(subject, function.identity)
 
-      process.send(sender, AcceptConnection(pool.listener_socket))
+      process.send(subject, AcceptConnection(pool.listener_socket))
 
-      actor.Ready(AcceptorState(sender, None), Some(actor_receiver))
+      actor.Ready(AcceptorState(subject, None), selector)
     },
     // TODO:  rethink this value, probably...
     init_timeout: 1_000,
@@ -315,33 +319,28 @@ pub fn start_acceptor(
               |> start_handler
               |> result.replace_error(HandlerError)
             sock
-            |> controlling_process(process.pid(start))
+            |> controlling_process(process.subject_owner(start))
             |> result.replace_error(ControlError)
             |> result.map(fn(_) { process.send(start, Ready) })
           }
           case res {
-            Error(reason) -> actor.Stop(Abnormal(dynamic.from(reason)))
+            Error(reason) -> {
+              logger.error(#("Failed to accept/start handler", reason))
+              actor.Stop(Abnormal("Failed to accept/start handler"))
+            }
             _val -> {
               actor.send(sender, AcceptConnection(listener))
               actor.Continue(state)
             }
           }
         }
-        msg -> actor.Stop(process.Abnormal(dynamic.from(msg)))
+        msg -> {
+          logger.error(#("Unknown message type", msg))
+          actor.Stop(process.Abnormal("Unknown message type"))
+        }
       }
     },
   ))
-}
-
-pub fn receiver_to_iterator(receiver: Receiver(a)) -> Iterator(a) {
-  iterator.unfold(
-    from: receiver,
-    with: fn(recv) {
-      recv
-      |> process.receive_forever
-      |> Next(accumulator: recv)
-    },
-  )
 }
 
 pub type AcceptorPool(data) {
@@ -350,8 +349,8 @@ pub type AcceptorPool(data) {
     handler: LoopFn(data),
     initial_data: data,
     pool_count: Int,
-    on_init: Option(fn(Sender(HandlerMessage)) -> Nil),
-    on_close: Option(fn(Sender(HandlerMessage)) -> Nil),
+    on_init: Option(fn(Subject(HandlerMessage)) -> Nil),
+    on_close: Option(fn(Subject(HandlerMessage)) -> Nil),
   )
 }
 
@@ -371,27 +370,10 @@ pub fn acceptor_pool(
   }
 }
 
-/// Initialize an acceptor pool where each handler holds some state
-pub fn acceptor_pool_with_data(
-  handler: LoopFn(data),
-  initial_data: data,
-) -> fn(ListenSocket) -> AcceptorPool(data) {
-  fn(listener_socket) {
-    AcceptorPool(
-      listener_socket: listener_socket,
-      handler: handler,
-      initial_data: initial_data,
-      pool_count: 10,
-      on_init: None,
-      on_close: None,
-    )
-  }
-}
-
 /// Add an `on_init` handler to the acceptor pool
 pub fn with_init(
   make_pool: fn(ListenSocket) -> AcceptorPool(data),
-  func: fn(Sender(HandlerMessage)) -> Nil,
+  func: fn(Subject(HandlerMessage)) -> Nil,
 ) -> fn(ListenSocket) -> AcceptorPool(data) {
   fn(socket) {
     let pool = make_pool(socket)
@@ -402,7 +384,7 @@ pub fn with_init(
 /// Add an `on_close` handler to the acceptor pool
 pub fn with_close(
   make_pool: fn(ListenSocket) -> AcceptorPool(data),
-  func: fn(Sender(HandlerMessage)) -> Nil,
+  func: fn(Subject(HandlerMessage)) -> Nil,
 ) -> fn(ListenSocket) -> AcceptorPool(data) {
   fn(socket) {
     let pool = make_pool(socket)
@@ -426,7 +408,7 @@ pub fn with_pool_size(
 /// Runs `loop_fn` on ever message received
 pub fn start_acceptor_pool(
   pool: AcceptorPool(data),
-) -> Result(Sender(supervisor.Message), actor.StartError) {
+) -> Result(Subject(supervisor.Message), actor.StartError) {
   supervisor.start_spec(supervisor.Spec(
     argument: Nil,
     // TODO:  i think these might need some tweaking
@@ -463,14 +445,14 @@ pub fn handler(handler func: HandlerFunc(data)) -> LoopFn(data) {
           Ok(_nil) -> actor.Continue(state)
           Error(reason) -> {
             logger.error(#("Failed to send data", reason))
-            actor.Stop(process.Abnormal(dynamic.from(reason)))
+            actor.Stop(process.Abnormal("Failed to send data"))
           }
         }
       // NOTE:  this should never happen.  This function is only called _after_
       // the other message types are handled
       msg -> {
         logger.error(#("Unhandled TCP message", msg))
-        actor.Stop(process.Abnormal(dynamic.from(msg)))
+        actor.Stop(process.Abnormal("Unhandled TCP message"))
       }
     }
   }
