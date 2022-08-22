@@ -13,5 +13,5 @@ pub opaque type Socket {
 
 pub type Transport {
   Tcp
-  Ssl(certfile: String, keyfile: String)
+  Ssl
 }

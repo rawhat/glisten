@@ -31,7 +31,7 @@ pub type AcceptorState {
 
 /// Worker process that handles `accept`ing connections and starts a new process
 /// which receives the messages from the socket
-pub fn start_acceptor(
+pub fn start(
   pool: Pool(data),
 ) -> Result(Subject(AcceptorMessage), actor.StartError) {
   actor.start_spec(actor.Spec(
@@ -53,7 +53,7 @@ pub fn start_acceptor(
         AcceptConnection(listener) -> {
           let #(accept, controlling_process) = case pool.transport {
             Tcp -> #(tcp.accept, tcp.controlling_process)
-            Ssl(..) -> #(ssl.accept, ssl.controlling_process)
+            Ssl -> #(ssl.accept, ssl.controlling_process)
           }
           let res = {
             try sock =
@@ -176,12 +176,10 @@ pub fn with_pool_size(
 /// Use SSL for the underlying socket.
 pub fn over_ssl(
   make_pool: fn(ListenSocket) -> Pool(data),
-  certfile: String,
-  keyfile: String,
 ) -> fn(ListenSocket) -> Pool(data) {
   fn(socket) {
     let pool = make_pool(socket)
-    Pool(..pool, transport: Ssl(certfile, keyfile))
+    Pool(..pool, transport: Ssl)
   }
 }
 
@@ -201,10 +199,7 @@ pub fn start_pool(
       |> iterator.fold(
         children,
         fn(children, _index) {
-          supervisor.add(
-            children,
-            supervisor.worker(fn(_arg) { start_acceptor(pool) }),
-          )
+          supervisor.add(children, supervisor.worker(fn(_arg) { start(pool) }))
         },
       )
     },

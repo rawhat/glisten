@@ -27,7 +27,12 @@ pub type HandlerMessage {
 }
 
 pub type LoopState(data) {
-  LoopState(socket: Socket, sender: Subject(HandlerMessage), data: data)
+  LoopState(
+    socket: Socket,
+    sender: Subject(HandlerMessage),
+    transport: Transport,
+    data: data,
+  )
 }
 
 pub type LoopFn(data) =
@@ -61,7 +66,12 @@ pub fn start(
           }
         })
       actor.Ready(
-        LoopState(handler.socket, subject, data: handler.initial_data),
+        LoopState(
+          handler.socket,
+          subject,
+          handler.transport,
+          data: handler.initial_data,
+        ),
         selector,
       )
     },
@@ -70,7 +80,7 @@ pub fn start(
       case msg {
         TcpClosed(_) | SslClosed(_) | Close -> {
           let close = case handler.transport {
-            socket.Ssl(..) -> ssl.close
+            socket.Ssl -> ssl.close
             socket.Tcp -> tcp.close
           }
           close(state.socket)
@@ -82,7 +92,7 @@ pub fn start(
         }
         Ready -> {
           let #(handshake, set_opts) = case handler.transport {
-            socket.Ssl(..) -> #(ssl.handshake, ssl.set_opts)
+            socket.Ssl -> #(ssl.handshake, ssl.set_opts)
             socket.Tcp -> #(fn(_socket) { Ok(Nil) }, tcp.set_opts)
           }
           state.socket
@@ -107,7 +117,7 @@ pub fn start(
         msg -> {
           let set_opts = case handler.transport {
             socket.Tcp -> tcp.set_opts
-            socket.Ssl(..) -> ssl.set_opts
+            socket.Ssl -> ssl.set_opts
           }
           case handler.loop(msg, state) {
             actor.Continue(next_state) -> {

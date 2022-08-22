@@ -73,7 +73,7 @@ pub fn serve_ssl(
     })
     |> result.then(fn(socket) {
       socket
-      |> over_ssl(with_pool, certfile, keyfile)
+      |> over_ssl(with_pool)
       |> acceptor.start_pool
       |> result.map_error(fn(err) {
         case err {
