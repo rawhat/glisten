@@ -7,7 +7,8 @@ import gleam/otp/supervisor
 import gleam/result
 import glisten/handler.{Handler, HandlerMessage, LoopFn, Ready}
 import glisten/logger
-import glisten/socket.{ListenSocket, Socket}
+import glisten/socket.{ListenSocket, Socket, Ssl, Tcp, Transport}
+import glisten/ssl
 import glisten/tcp
 
 pub type AcceptorMessage {
@@ -21,7 +22,11 @@ pub type AcceptorError {
 }
 
 pub type AcceptorState {
-  AcceptorState(sender: Subject(AcceptorMessage), socket: Option(Socket))
+  AcceptorState(
+    sender: Subject(AcceptorMessage),
+    socket: Option(Socket),
+    transport: Transport,
+  )
 }
 
 /// Worker process that handles `accept`ing connections and starts a new process
@@ -38,7 +43,7 @@ pub fn start_acceptor(
 
       process.send(subject, AcceptConnection(pool.listener_socket))
 
-      actor.Ready(AcceptorState(subject, None), selector)
+      actor.Ready(AcceptorState(subject, None, pool.transport), selector)
     },
     // TODO:  rethink this value, probably...
     init_timeout: 1_000,
@@ -46,9 +51,13 @@ pub fn start_acceptor(
       let AcceptorState(sender, ..) = state
       case msg {
         AcceptConnection(listener) -> {
+          let #(accept, controlling_process) = case pool.transport {
+            Tcp -> #(tcp.accept, tcp.controlling_process)
+            Ssl(..) -> #(ssl.accept, ssl.controlling_process)
+          }
           let res = {
             try sock =
-              tcp.accept(listener)
+              accept(listener)
               |> result.replace_error(AcceptError)
             try start =
               Handler(
@@ -57,11 +66,12 @@ pub fn start_acceptor(
                 pool.handler,
                 pool.on_init,
                 pool.on_close,
+                pool.transport,
               )
               |> handler.start
               |> result.replace_error(HandlerError)
             sock
-            |> tcp.controlling_process(process.subject_owner(start))
+            |> controlling_process(process.subject_owner(start))
             |> result.replace_error(ControlError)
             |> result.map(fn(_) { process.send(start, Ready) })
           }
@@ -93,6 +103,7 @@ pub type Pool(data) {
     pool_count: Int,
     on_init: Option(fn(Subject(HandlerMessage)) -> Nil),
     on_close: Option(fn(Subject(HandlerMessage)) -> Nil),
+    transport: Transport,
   )
 }
 
@@ -106,12 +117,13 @@ pub fn new_pool(handler: LoopFn(Nil)) -> fn(ListenSocket) -> Pool(Nil) {
       pool_count: 10,
       on_init: None,
       on_close: None,
+      transport: Tcp,
     )
   }
 }
 
 /// Initialize an acceptor pool where each handler holds some state
-pub fn acceptor_pool_with_data(
+pub fn new_pool_with_data(
   handler: LoopFn(data),
   initial_data: data,
 ) -> fn(ListenSocket) -> Pool(data) {
@@ -123,6 +135,7 @@ pub fn acceptor_pool_with_data(
       pool_count: 10,
       on_init: None,
       on_close: None,
+      transport: Tcp,
     )
   }
 }
@@ -157,6 +170,18 @@ pub fn with_pool_size(
   fn(socket) {
     let pool = make_pool(socket)
     Pool(..pool, pool_count: pool_count)
+  }
+}
+
+/// Use SSL for the underlying socket.
+pub fn over_ssl(
+  make_pool: fn(ListenSocket) -> Pool(data),
+  certfile: String,
+  keyfile: String,
+) -> fn(ListenSocket) -> Pool(data) {
+  fn(socket) {
+    let pool = make_pool(socket)
+    Pool(..pool, transport: Ssl(certfile, keyfile))
   }
 }
 

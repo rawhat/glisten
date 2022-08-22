@@ -5,10 +5,13 @@ import gleam/function
 import gleam/option.{Option, Some}
 import gleam/otp/actor
 import gleam/otp/port.{Port}
+import gleam/result
 import glisten/logger
 import glisten/socket.{Socket}
+import glisten/socket.{Transport}
+import glisten/socket/options
+import glisten/ssl
 import glisten/tcp
-import glisten/tcp/options
 
 /// All message types that the handler will receive, or that you can
 /// send to the handler process
@@ -17,6 +20,8 @@ pub type HandlerMessage {
   Ready
   ReceiveMessage(BitString)
   SendMessage(BitBuilder)
+  Ssl(socket: Port, data: BitString)
+  SslClosed(Nil)
   Tcp(socket: Port, data: BitString)
   TcpClosed(Nil)
 }
@@ -35,6 +40,7 @@ pub type Handler(data) {
     loop: LoopFn(data),
     on_init: Option(fn(Subject(HandlerMessage)) -> Nil),
     on_close: Option(fn(Subject(HandlerMessage)) -> Nil),
+    transport: Transport,
   )
 }
 
@@ -50,14 +56,10 @@ pub fn start(
         |> process.selecting(subject, function.identity)
         |> process.selecting_anything(fn(msg) {
           case dynamic.unsafe_coerce(msg) {
-            Tcp(_sock, data) -> ReceiveMessage(data)
+            Tcp(_sock, data) | Ssl(_sock, data) -> ReceiveMessage(data)
             msg -> msg
           }
         })
-      let _ = case handler.on_init {
-        Some(func) -> func(subject)
-        _ -> Nil
-      }
       actor.Ready(
         LoopState(handler.socket, subject, data: handler.initial_data),
         selector,
@@ -66,8 +68,12 @@ pub fn start(
     init_timeout: 1_000,
     loop: fn(msg, state) {
       case msg {
-        TcpClosed(_) | Close -> {
-          tcp.close(state.socket)
+        TcpClosed(_) | SslClosed(_) | Close -> {
+          let close = case handler.transport {
+            socket.Ssl(..) -> ssl.close
+            socket.Tcp -> tcp.close
+          }
+          close(state.socket)
           let _ = case handler.on_close {
             Some(func) -> func(state.sender)
             _ -> Nil
@@ -75,19 +81,43 @@ pub fn start(
           actor.Stop(process.Normal)
         }
         Ready -> {
-          assert Ok(_) =
-            tcp.set_opts(state.socket, [options.ActiveMode(options.Once)])
-          actor.Continue(state)
+          let #(handshake, set_opts) = case handler.transport {
+            socket.Ssl(..) -> #(ssl.handshake, ssl.set_opts)
+            socket.Tcp -> #(fn(_socket) { Ok(Nil) }, tcp.set_opts)
+          }
+          state.socket
+          |> handshake
+          |> result.replace_error("Failed to handshake socket")
+          |> result.map(fn(_ok) {
+            let _ = case handler.on_init {
+              Some(func) -> func(state.sender)
+              _ -> Nil
+            }
+          })
+          |> result.then(fn(_ok) {
+            set_opts(state.socket, [options.ActiveMode(options.Once)])
+            |> result.replace_error("Failed to set socket active")
+          })
+          |> result.replace(actor.Continue(state))
+          |> result.map_error(fn(reason) {
+            actor.Stop(process.Abnormal(reason))
+          })
+          |> result.unwrap_both
         }
-        msg ->
+        msg -> {
+          let set_opts = case handler.transport {
+            socket.Tcp -> tcp.set_opts
+            socket.Ssl(..) -> ssl.set_opts
+          }
           case handler.loop(msg, state) {
             actor.Continue(next_state) -> {
               assert Ok(Nil) =
-                tcp.set_opts(state.socket, [options.ActiveMode(options.Once)])
+                set_opts(state.socket, [options.ActiveMode(options.Once)])
               actor.Continue(next_state)
             }
             msg -> msg
           }
+        }
       }
     },
   ))
@@ -99,7 +129,7 @@ pub type HandlerFunc(data) =
 /// This helper will generate a TCP handler that will call your handler function
 /// with the BitString data in the packet as well as the LoopState, with any
 /// associated state data you are maintaining
-pub fn handler(handler func: HandlerFunc(data)) -> LoopFn(data) {
+pub fn func(handler func: HandlerFunc(data)) -> LoopFn(data) {
   fn(msg, state: LoopState(data)) {
     case msg {
       Tcp(_, _) | Ready -> {

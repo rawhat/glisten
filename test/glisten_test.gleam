@@ -6,7 +6,7 @@ import gleeunit
 import gleeunit/should
 import glisten/acceptor
 import glisten/handler
-import glisten/tcp/options
+import glisten/socket/options
 import glisten/tcp
 import glisten
 import tcp_client
@@ -51,7 +51,7 @@ pub fn it_echoes_messages_test() {
 pub fn it_accepts_from_the_pool_test() {
   let client_sender = process.new_subject()
   assert Ok(Nil) =
-    handler.handler(fn(msg, state) {
+    handler.func(fn(msg, state) {
       assert Ok(_) = tcp.send(state.socket, bit_builder.from_bit_string(msg))
       actor.Continue(state)
     })

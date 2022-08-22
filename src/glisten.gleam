@@ -1,13 +1,14 @@
-import gleam/bit_builder
 import gleam/dynamic.{Dynamic}
 import gleam/erlang/process
-import gleam/option.{Some}
 import gleam/otp/actor
 import gleam/result
-import glisten/acceptor.{AcceptorState, Pool}
-import glisten/handler.{HandlerMessage, ReceiveMessage}
+import glisten/acceptor.{Pool, over_ssl}
 import glisten/socket.{Closed, ListenSocket, Timeout}
 import glisten/tcp
+import glisten/ssl
+import gleam/otp/actor
+import glisten/ssl
+import glisten/socket/options.{Certfile, Keyfile}
 
 /// Reasons that `serve` might fail
 pub type StartError {
@@ -19,7 +20,7 @@ pub type StartError {
 }
 
 /// Sets up a TCP listener with the given acceptor pool. The second argument
-/// can be obtained from the `glisten/tcp.{acceptor_pool}` function.
+/// can be obtained from the `glisten/acceptor.{acceptor_pool}` function.
 pub fn serve(
   port: Int,
   with_pool: fn(ListenSocket) -> Pool(data),
@@ -49,17 +50,39 @@ pub fn serve(
   Ok(Nil)
 }
 
-pub fn echo_loop(
-  msg: HandlerMessage,
-  state: AcceptorState,
-) -> actor.Next(AcceptorState) {
-  case msg, state {
-    ReceiveMessage(data), AcceptorState(socket: Some(sock), ..) -> {
-      let _ = tcp.send(sock, bit_builder.from_bit_string(data))
-      Nil
-    }
-    _, _ -> Nil
-  }
+external fn start_ssl() -> Result(Nil, Dynamic) =
+  "ssl_ffi" "start_ssl"
 
-  actor.Continue(state)
+/// Sets up a SSL listener with the given acceptor pool. The second argument
+/// can be obtained from the `glisten/acceptor.{acceptor_pool}` function.
+pub fn serve_ssl(
+  port port: Int,
+  certfile certfile: String,
+  keyfile keyfile: String,
+  with_pool with_pool: fn(ListenSocket) -> Pool(data),
+) -> Result(Nil, StartError) {
+  assert Ok(_nil) = start_ssl()
+  try _ =
+    port
+    |> ssl.listen([Certfile(certfile), Keyfile(keyfile)])
+    |> result.map_error(fn(err) {
+      case err {
+        Closed -> ListenerClosed
+        Timeout -> ListenerTimeout
+      }
+    })
+    |> result.then(fn(socket) {
+      socket
+      |> over_ssl(with_pool, certfile, keyfile)
+      |> acceptor.start_pool
+      |> result.map_error(fn(err) {
+        case err {
+          actor.InitTimeout -> AcceptorTimeout
+          actor.InitFailed(reason) -> AcceptorFailed(reason)
+          actor.InitCrashed(reason) -> AcceptorCrashed(reason)
+        }
+      })
+    })
+
+  Ok(Nil)
 }

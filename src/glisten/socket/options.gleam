@@ -29,6 +29,9 @@ pub type TcpOption {
   Reuseaddr(Bool)
   ActiveMode(ActiveState)
   Mode(SocketMode)
+  // TODO:  Probably should adjust the type here to only allow this for SSL
+  Certfile(String)
+  Keyfile(String)
 }
 
 pub fn to_map(options: List(TcpOption)) -> Map(atom.Atom, Dynamic) {

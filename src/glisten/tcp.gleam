@@ -5,7 +5,7 @@ import gleam/erlang/process.{Pid}
 import gleam/list
 import gleam/map.{Map}
 import glisten/socket.{ListenSocket, Socket, SocketReason}
-import glisten/tcp/options.{TcpOption}
+import glisten/socket/options.{TcpOption}
 
 pub external fn controlling_process(
   socket: Socket,

@@ -1,5 +1,5 @@
--module(tls_ffi).
--export([controlling_process/2, send/2, set_opts/2]).
+-module(ssl_ffi).
+-export([controlling_process/2, send/2, set_opts/2, start_ssl/0]).
 
 send(Socket, Packet) ->
   case ssl:send(Socket, Packet) of
@@ -16,5 +16,11 @@ set_opts(Socket, Options) ->
 controlling_process(Socket, Pid) ->
   case ssl:controlling_process(Socket, Pid) of
     ok -> {ok, nil};
+    {error, Reason} -> {error, Reason}
+  end.
+
+start_ssl() ->
+  case application:ensure_all_started(ssl) of
+    {ok, _} -> {ok, nil};
     {error, Reason} -> {error, Reason}
   end.

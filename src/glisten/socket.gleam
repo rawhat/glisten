@@ -10,3 +10,8 @@ pub opaque type ListenSocket {
 pub opaque type Socket {
   Socket
 }
+
+pub type Transport {
+  Tcp
+  Ssl(certfile: String, keyfile: String)
+}
