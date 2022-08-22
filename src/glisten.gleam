@@ -1,10 +1,13 @@
+import gleam/bit_builder
 import gleam/dynamic.{Dynamic}
 import gleam/erlang/process
+import gleam/option.{Some}
 import gleam/otp/actor
 import gleam/result
-import glisten/tcp.{
-  AcceptorPool, Closed, ListenSocket, Timeout, start_acceptor_pool,
-}
+import glisten/acceptor.{AcceptorState, Pool}
+import glisten/handler.{HandlerMessage, ReceiveMessage}
+import glisten/socket.{Closed, ListenSocket, Timeout}
+import glisten/tcp
 
 /// Reasons that `serve` might fail
 pub type StartError {
@@ -19,7 +22,7 @@ pub type StartError {
 /// can be obtained from the `glisten/tcp.{acceptor_pool}` function.
 pub fn serve(
   port: Int,
-  with_pool: fn(ListenSocket) -> AcceptorPool(data),
+  with_pool: fn(ListenSocket) -> Pool(data),
 ) -> Result(Nil, StartError) {
   try _ =
     port
@@ -33,7 +36,7 @@ pub fn serve(
     |> result.then(fn(socket) {
       socket
       |> with_pool
-      |> start_acceptor_pool
+      |> acceptor.start_pool
       |> result.map_error(fn(err) {
         case err {
           actor.InitTimeout -> AcceptorTimeout
@@ -44,4 +47,19 @@ pub fn serve(
     })
 
   Ok(Nil)
+}
+
+pub fn echo_loop(
+  msg: HandlerMessage,
+  state: AcceptorState,
+) -> actor.Next(AcceptorState) {
+  case msg, state {
+    ReceiveMessage(data), AcceptorState(socket: Some(sock), ..) -> {
+      let _ = tcp.send(sock, bit_builder.from_bit_string(data))
+      Nil
+    }
+    _, _ -> Nil
+  }
+
+  actor.Continue(state)
 }

@@ -4,6 +4,9 @@ import gleam/erlang/process
 import gleam/otp/actor
 import gleeunit
 import gleeunit/should
+import glisten/acceptor
+import glisten/handler
+import glisten/tcp/options
 import glisten/tcp
 import glisten
 import tcp_client
@@ -23,7 +26,8 @@ pub fn it_echoes_messages_test() {
     process.start(
       fn() {
         assert Nil = process.send(client_subject, Connected)
-        assert Ok(listener) = tcp.listen(9999, [tcp.ActiveMode(tcp.Passive)])
+        assert Ok(listener) =
+          tcp.listen(9999, [options.ActiveMode(options.Passive)])
         assert Ok(socket) = tcp.accept(listener)
         let loop = fn() {
           assert Ok(msg) = tcp.receive_timeout(socket, 0, 200)
@@ -47,12 +51,12 @@ pub fn it_echoes_messages_test() {
 pub fn it_accepts_from_the_pool_test() {
   let client_sender = process.new_subject()
   assert Ok(Nil) =
-    tcp.handler(fn(msg, state) {
+    handler.handler(fn(msg, state) {
       assert Ok(_) = tcp.send(state.socket, bit_builder.from_bit_string(msg))
       actor.Continue(state)
     })
-    |> tcp.acceptor_pool
-    |> tcp.with_pool_size(1)
+    |> acceptor.new_pool
+    |> acceptor.with_pool_size(1)
     |> glisten.serve(9999, _)
 
   let _client_process =

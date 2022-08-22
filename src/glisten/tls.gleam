@@ -5,17 +5,17 @@ import gleam/erlang/process.{Pid}
 import gleam/list
 import gleam/map.{Map}
 import glisten/socket.{ListenSocket, Socket, SocketReason}
-import glisten/tcp/options.{TcpOption}
+import glisten/tcp/options
 
 pub external fn controlling_process(
   socket: Socket,
   pid: Pid,
 ) -> Result(Nil, Atom) =
-  "tcp_ffi" "controlling_process"
+  "tls_ffi" "controlling_process"
 
 external fn do_listen_tcp(
   port: Int,
-  options: List(TcpOption),
+  options: List(options.TcpOption),
 ) -> Result(ListenSocket, SocketReason) =
   "gen_tcp" "listen"
 
@@ -65,7 +65,10 @@ external fn do_set_opts(socket: Socket, opts: List(Dynamic)) -> Result(Nil, Nil)
   "tcp_ffi" "set_opts"
 
 /// Update the optons for a socket (mutates the socket)
-pub fn set_opts(socket: Socket, opts: List(TcpOption)) -> Result(Nil, Nil) {
+pub fn set_opts(
+  socket: Socket,
+  opts: List(options.TcpOption),
+) -> Result(Nil, Nil) {
   opts
   |> options.to_map
   |> map.to_list
@@ -76,7 +79,7 @@ pub fn set_opts(socket: Socket, opts: List(TcpOption)) -> Result(Nil, Nil) {
 /// Start listening over TCP on a port with the given options
 pub fn listen(
   port: Int,
-  options: List(TcpOption),
+  options: List(options.TcpOption),
 ) -> Result(ListenSocket, SocketReason) {
   options
   |> options.merge_with_defaults

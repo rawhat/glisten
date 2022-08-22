@@ -1,7 +1,7 @@
 import gleam/dynamic.{Dynamic}
 import gleam/erlang/atom
 import gleam/erlang/charlist.{Charlist}
-import glisten/tcp.{Socket}
+import glisten/socket.{Socket}
 
 external fn tcp_connect(
   host: Charlist,
