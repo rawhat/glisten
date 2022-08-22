@@ -8,10 +8,10 @@ It uses the `gleam_otp` library to handle the supervisor and child processes.
 will block on `accept` until a connection is opened.  The acceptor will then
 spawn a handler process and then block again on `accept`.
 
-The most obvious entrypoint is `glisten/tcp.{handler, serve}` where `serve`
-listens for TCP connections on a given port.  It also takes a handler function
-wrapper which you can provide functionality to, and the state which each TCP
-connection process will hold.  This takes the shape of:
+The most obvious entrypoint is `glisten.{serve}` which listens for TCP
+connections on a given port.  It also takes a handler function wrapper
+`handler.{func}` which you can provide functionality to, and the state which
+each TCP connection process will hold.  This takes the shape of:
 
 ```gleam
 type HandlerFunc(data) =
