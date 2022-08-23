@@ -147,14 +147,19 @@ pub fn func(handler func: HandlerFunc(data)) -> LoopFn(data) {
         actor.Continue(state)
       }
       ReceiveMessage(data) -> func(data, state)
-      SendMessage(data) ->
-        case tcp.send(state.socket, data) {
+      SendMessage(data) -> {
+        let send = case state.transport {
+          socket.Tcp -> tcp.send
+          socket.Ssl -> ssl.send
+        }
+        case send(state.socket, data) {
           Ok(_nil) -> actor.Continue(state)
           Error(reason) -> {
             logger.error(#("Failed to send data", reason))
             actor.Stop(process.Abnormal("Failed to send data"))
           }
         }
+      }
       // NOTE:  this should never happen.  This function is only called _after_
       // the other message types are handled
       msg -> {
