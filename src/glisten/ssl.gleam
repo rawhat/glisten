@@ -3,7 +3,7 @@ import gleam/dynamic.{Dynamic}
 import gleam/erlang/atom.{Atom}
 import gleam/erlang/process.{Pid}
 import gleam/list
-import gleam/map.{Map}
+import gleam/map
 import glisten/socket.{ListenSocket, Socket, SocketReason}
 import glisten/socket/options
 
