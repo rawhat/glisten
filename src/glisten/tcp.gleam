@@ -82,3 +82,7 @@ pub fn listen(
   |> options.merge_with_defaults
   |> do_listen_tcp(port, _)
 }
+
+pub fn handshake(_socket: Socket) -> Result(Nil, Nil) {
+  Ok(Nil)
+}

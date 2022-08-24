@@ -13,7 +13,7 @@ pub external fn controlling_process(
 ) -> Result(Nil, Atom) =
   "ssl_ffi" "controlling_process"
 
-external fn do_listen_ssl(
+external fn do_listen(
   port: Int,
   options: List(options.TcpOption),
 ) -> Result(ListenSocket, SocketReason) =
@@ -47,10 +47,7 @@ pub external fn send(
 ) -> Result(Nil, SocketReason) =
   "ssl_ffi" "send"
 
-pub external fn socket_info(socket: Socket) -> Map(a, b) =
-  "socket" "info"
-
-pub external fn close(socket: a) -> Atom =
+pub external fn close(socket: Socket) -> Atom =
   "ssl" "close"
 
 pub external fn do_shutdown(socket: Socket, write: Atom) -> Nil =
@@ -86,5 +83,5 @@ pub fn listen(
 ) -> Result(ListenSocket, SocketReason) {
   options
   |> options.merge_with_defaults
-  |> do_listen_ssl(port, _)
+  |> do_listen(port, _)
 }

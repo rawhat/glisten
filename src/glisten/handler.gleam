@@ -8,10 +8,8 @@ import gleam/otp/port.{Port}
 import gleam/result
 import glisten/logger
 import glisten/socket.{Socket}
-import glisten/socket.{Transport}
+import glisten/socket/transport.{Transport}
 import glisten/socket/options
-import glisten/ssl
-import glisten/tcp
 
 /// All message types that the handler will receive, or that you can
 /// send to the handler process
@@ -79,24 +77,16 @@ pub fn start(
     loop: fn(msg, state) {
       case msg {
         TcpClosed(_) | SslClosed(_) | Close -> {
-          let close = case handler.transport {
-            socket.Ssl -> ssl.close
-            socket.Tcp -> tcp.close
-          }
-          close(state.socket)
+          state.transport.close(state.socket)
           let _ = case handler.on_close {
             Some(func) -> func(state.sender)
             _ -> Nil
           }
           actor.Stop(process.Normal)
         }
-        Ready -> {
-          let #(handshake, set_opts) = case handler.transport {
-            socket.Ssl -> #(ssl.handshake, ssl.set_opts)
-            socket.Tcp -> #(fn(_socket) { Ok(Nil) }, tcp.set_opts)
-          }
+        Ready ->
           state.socket
-          |> handshake
+          |> state.transport.handshake
           |> result.replace_error("Failed to handshake socket")
           |> result.map(fn(_ok) {
             let _ = case handler.on_init {
@@ -105,7 +95,10 @@ pub fn start(
             }
           })
           |> result.then(fn(_ok) {
-            set_opts(state.socket, [options.ActiveMode(options.Once)])
+            state.transport.set_opts(
+              state.socket,
+              [options.ActiveMode(options.Once)],
+            )
             |> result.replace_error("Failed to set socket active")
           })
           |> result.replace(actor.Continue(state))
@@ -113,21 +106,18 @@ pub fn start(
             actor.Stop(process.Abnormal(reason))
           })
           |> result.unwrap_both
-        }
-        msg -> {
-          let set_opts = case handler.transport {
-            socket.Tcp -> tcp.set_opts
-            socket.Ssl -> ssl.set_opts
-          }
+        msg ->
           case handler.loop(msg, state) {
             actor.Continue(next_state) -> {
               assert Ok(Nil) =
-                set_opts(state.socket, [options.ActiveMode(options.Once)])
+                state.transport.set_opts(
+                  state.socket,
+                  [options.ActiveMode(options.Once)],
+                )
               actor.Continue(next_state)
             }
             msg -> msg
           }
-        }
       }
     },
   ))
@@ -147,19 +137,14 @@ pub fn func(handler func: HandlerFunc(data)) -> LoopFn(data) {
         actor.Continue(state)
       }
       ReceiveMessage(data) -> func(data, state)
-      SendMessage(data) -> {
-        let send = case state.transport {
-          socket.Tcp -> tcp.send
-          socket.Ssl -> ssl.send
-        }
-        case send(state.socket, data) {
+      SendMessage(data) ->
+        case state.transport.send(state.socket, data) {
           Ok(_nil) -> actor.Continue(state)
           Error(reason) -> {
             logger.error(#("Failed to send data", reason))
             actor.Stop(process.Abnormal("Failed to send data"))
           }
         }
-      }
       // NOTE:  this should never happen.  This function is only called _after_
       // the other message types are handled
       msg -> {

@@ -7,9 +7,8 @@ import gleam/otp/supervisor
 import gleam/result
 import glisten/handler.{Handler, HandlerMessage, LoopFn, Ready}
 import glisten/logger
-import glisten/socket.{ListenSocket, Socket, Ssl, Tcp, Transport}
-import glisten/ssl
-import glisten/tcp
+import glisten/socket.{ListenSocket, Socket}
+import glisten/socket/transport.{Transport}
 
 pub type AcceptorMessage {
   AcceptConnection(ListenSocket)
@@ -51,13 +50,9 @@ pub fn start(
       let AcceptorState(sender, ..) = state
       case msg {
         AcceptConnection(listener) -> {
-          let #(accept, controlling_process) = case pool.transport {
-            Tcp -> #(tcp.accept, tcp.controlling_process)
-            Ssl -> #(ssl.accept, ssl.controlling_process)
-          }
           let res = {
             try sock =
-              accept(listener)
+              state.transport.accept(listener)
               |> result.replace_error(AcceptError)
             try start =
               Handler(
@@ -71,7 +66,7 @@ pub fn start(
               |> handler.start
               |> result.replace_error(HandlerError)
             sock
-            |> controlling_process(process.subject_owner(start))
+            |> state.transport.controlling_process(process.subject_owner(start))
             |> result.replace_error(ControlError)
             |> result.map(fn(_) { process.send(start, Ready) })
           }
@@ -117,7 +112,7 @@ pub fn new_pool(handler: LoopFn(Nil)) -> fn(ListenSocket) -> Pool(Nil) {
       pool_count: 10,
       on_init: None,
       on_close: None,
-      transport: Tcp,
+      transport: transport.tcp(),
     )
   }
 }
@@ -135,7 +130,7 @@ pub fn new_pool_with_data(
       pool_count: 10,
       on_init: None,
       on_close: None,
-      transport: Tcp,
+      transport: transport.tcp(),
     )
   }
 }
@@ -179,7 +174,7 @@ pub fn over_ssl(
 ) -> fn(ListenSocket) -> Pool(data) {
   fn(socket) {
     let pool = make_pool(socket)
-    Pool(..pool, transport: Ssl)
+    Pool(..pool, transport: transport.ssl())
   }
 }
 
