@@ -1,13 +1,11 @@
 import gleam/dynamic.{Dynamic}
 import gleam/erlang/process
-import gleam/otp/actor
 import gleam/result
 import glisten/acceptor.{Pool, over_ssl}
 import glisten/socket.{Closed, ListenSocket, Timeout}
 import glisten/tcp
 import glisten/ssl
 import gleam/otp/actor
-import glisten/ssl
 import glisten/socket/options.{Certfile, Keyfile}
 
 /// Reasons that `serve` might fail
