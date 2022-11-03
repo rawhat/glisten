@@ -32,6 +32,8 @@ Here is a basic echo server:
 ```gleam
 import gleam/bit_builder
 import gleam/erlang/process
+import gleam/otp/actor
+import gleam/result
 import glisten/acceptor
 import glisten/handler
 import glisten/tcp
