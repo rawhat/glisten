@@ -1,5 +1,5 @@
 -module(ssl_ffi).
--export([controlling_process/2, send/2, set_opts/2, start_ssl/0]).
+-export([controlling_process/2, send/2, set_opts/2, start_ssl/0, shutdown/2, close/1]).
 
 send(Socket, Packet) ->
   case ssl:send(Socket, Packet) of
@@ -22,5 +22,17 @@ controlling_process(Socket, Pid) ->
 start_ssl() ->
   case application:ensure_all_started(ssl) of
     {ok, _} -> {ok, nil};
+    {error, Reason} -> {error, Reason}
+  end.
+
+shutdown(Socket, How) ->
+  case ssl:shutdown(Socket, How) of
+    ok -> {ok, nil};
+    {error, Reason} -> {error, Reason}
+  end.
+
+close(Socket) ->
+  case ssl:close(Socket) of
+    ok -> {ok, nil};
     {error, Reason} -> {error, Reason}
   end.

@@ -50,13 +50,16 @@ pub external fn send(
 pub external fn socket_info(socket: Socket) -> Map(a, b) =
   "socket" "info"
 
-pub external fn close(socket: a) -> Atom =
-  "gen_tcp" "close"
+pub external fn close(socket: a) -> Result(Nil, SocketReason) =
+  "tcp_ffi" "close"
 
-pub external fn do_shutdown(socket: Socket, write: Atom) -> Nil =
-  "gen_tcp" "shutdown"
+pub external fn do_shutdown(
+  socket: Socket,
+  write: Atom,
+) -> Result(Nil, SocketReason) =
+  "tcp_ffi" "shutdown"
 
-pub fn shutdown(socket: Socket) {
+pub fn shutdown(socket: Socket) -> Result(Nil, SocketReason) {
   assert Ok(write) = atom.from_string("write")
   do_shutdown(socket, write)
 }

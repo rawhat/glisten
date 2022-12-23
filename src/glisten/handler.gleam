@@ -6,6 +6,7 @@ import gleam/option.{Option, Some}
 import gleam/otp/actor
 import gleam/otp/port.{Port}
 import gleam/result
+import gleam/string
 import glisten/logger
 import glisten/socket.{Socket}
 import glisten/socket/transport.{Transport}
@@ -76,14 +77,17 @@ pub fn start(
     init_timeout: 1_000,
     loop: fn(msg, state) {
       case msg {
-        TcpClosed(_) | SslClosed(_) | Close -> {
-          state.transport.close(state.socket)
-          let _ = case handler.on_close {
-            Some(func) -> func(state.sender)
-            _ -> Nil
+        TcpClosed(_) | SslClosed(_) | Close ->
+          case state.transport.close(state.socket) {
+            Ok(Nil) -> {
+              let _ = case handler.on_close {
+                Some(func) -> func(state.sender)
+                _ -> Nil
+              }
+              actor.Stop(process.Normal)
+            }
+            Error(err) -> actor.Stop(process.Abnormal(string.inspect(err)))
           }
-          actor.Stop(process.Normal)
-        }
         Ready ->
           state.socket
           |> state.transport.handshake

@@ -47,13 +47,16 @@ pub external fn send(
 ) -> Result(Nil, SocketReason) =
   "ssl_ffi" "send"
 
-pub external fn close(socket: Socket) -> Atom =
-  "ssl" "close"
+pub external fn close(socket: Socket) -> Result(Nil, SocketReason) =
+  "ssl_ffi" "close"
 
-pub external fn do_shutdown(socket: Socket, write: Atom) -> Nil =
-  "ssl" "shutdown"
+pub external fn do_shutdown(
+  socket: Socket,
+  write: Atom,
+) -> Result(Nil, SocketReason) =
+  "ssl_ffi" "shutdown"
 
-pub fn shutdown(socket: Socket) {
+pub fn shutdown(socket: Socket) -> Result(Nil, SocketReason) {
   assert Ok(write) = atom.from_string("write")
   do_shutdown(socket, write)
 }
