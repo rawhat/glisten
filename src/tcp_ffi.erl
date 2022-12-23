@@ -1,5 +1,5 @@
 -module(tcp_ffi).
--export([controlling_process/2, send/2, set_opts/2, shutdown/2]).
+-export([controlling_process/2, send/2, set_opts/2, shutdown/2, close/1]).
 
 send(Socket, Packet) ->
   case gen_tcp:send(Socket, Packet) of
@@ -21,6 +21,12 @@ controlling_process(Socket, Pid) ->
 
 shutdown(Socket, How) ->
   case gen_tcp:shutdown(Socket, How) of
+    ok -> {ok, nil};
+    {error, Reason} -> {error, Reason}
+  end.
+
+close(Socket) ->
+  case gen_tcp:close(Socket) of
     ok -> {ok, nil};
     {error, Reason} -> {error, Reason}
   end.

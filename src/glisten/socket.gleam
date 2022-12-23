@@ -1,6 +1,8 @@
 pub type SocketReason {
   Closed
   Timeout
+  Badarg
+  Terminated
 
   // inet:posix() errors.
   Eaddrinuse

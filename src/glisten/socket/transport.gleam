@@ -33,7 +33,7 @@ type SocketInfo =
   fn(Socket) -> Map(Atom, Dynamic)
 
 type Close =
-  fn(Socket) -> Atom
+  fn(Socket) -> Result(Nil, SocketReason)
 
 type Shutdown =
   fn(Socket) -> Result(Nil, SocketReason)
