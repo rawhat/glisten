@@ -36,7 +36,7 @@ type Close =
   fn(Socket) -> Atom
 
 type Shutdown =
-  fn(Socket) -> Nil
+  fn(Socket) -> Result(Nil, SocketReason)
 
 type SetOpts =
   fn(Socket, List(options.TcpOption)) -> Result(Nil, Nil)
