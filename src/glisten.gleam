@@ -2,7 +2,7 @@ import gleam/dynamic.{Dynamic}
 import gleam/erlang/process
 import gleam/result
 import glisten/acceptor.{Pool, over_ssl}
-import glisten/socket.{Closed, ListenSocket, Timeout}
+import glisten/socket.{Closed, ListenSocket, SocketReason, Timeout}
 import glisten/tcp
 import glisten/ssl
 import gleam/otp/actor
@@ -15,6 +15,7 @@ pub type StartError {
   AcceptorTimeout
   AcceptorFailed(process.ExitReason)
   AcceptorCrashed(Dynamic)
+  SystemError(SocketReason)
 }
 
 /// Sets up a TCP listener with the given acceptor pool. The second argument
@@ -30,6 +31,7 @@ pub fn serve(
       case err {
         Closed -> ListenerClosed
         Timeout -> ListenerTimeout
+        err -> SystemError(err)
       }
     })
     |> result.then(fn(socket) {
@@ -67,6 +69,7 @@ pub fn serve_ssl(
       case err {
         Closed -> ListenerClosed
         Timeout -> ListenerTimeout
+        err -> SystemError(err)
       }
     })
     |> result.then(fn(socket) {
