@@ -1,6 +1,7 @@
 -module(ssl_ffi).
 
--export([controlling_process/2, send/2, set_opts/2, start_ssl/0, shutdown/2, close/1, negotitated_protocol/1]).
+-export([controlling_process/2, send/2, set_opts/2, start_ssl/0, shutdown/2, close/1,
+         negotiated_protocol/1]).
 
 send(Socket, Packet) ->
   case ssl:send(Socket, Packet) of
@@ -50,7 +51,7 @@ close(Socket) ->
       {error, Reason}
   end.
 
-negotitated_protocol(Socket) ->
+negotiated_protocol(Socket) ->
   case ssl:negotiated_protocol(Socket) of
     {error, _} ->
       {error, "Socket not negotiated"};
