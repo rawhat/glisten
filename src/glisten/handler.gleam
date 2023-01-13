@@ -74,7 +74,7 @@ pub fn start(
         selector,
       )
     },
-    init_timeout: 1_000,
+    init_timeout: 1000,
     loop: fn(msg, state) {
       case msg {
         TcpClosed(_) | SslClosed(_) | Close ->

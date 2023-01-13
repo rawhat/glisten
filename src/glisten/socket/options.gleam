@@ -32,6 +32,7 @@ pub type TcpOption {
   // TODO:  Probably should adjust the type here to only allow this for SSL
   Certfile(String)
   Keyfile(String)
+  AlpnPreferredProtocols(List(String))
 }
 
 pub fn to_map(options: List(TcpOption)) -> Map(atom.Atom, Dynamic) {

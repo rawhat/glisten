@@ -45,7 +45,7 @@ pub fn start(
       actor.Ready(AcceptorState(subject, None, pool.transport), selector)
     },
     // TODO:  rethink this value, probably...
-    init_timeout: 1_000,
+    init_timeout: 1000,
     loop: fn(msg, state) {
       let AcceptorState(sender, ..) = state
       case msg {

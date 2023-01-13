@@ -86,6 +86,9 @@ pub fn listen(
   |> do_listen_tcp(port, _)
 }
 
-pub fn handshake(_socket: Socket) -> Result(Nil, Nil) {
-  Ok(Nil)
+pub fn handshake(socket: Socket) -> Result(Socket, Nil) {
+  Ok(socket)
 }
+
+pub external fn negotiated_protocol(socket: Socket) -> a =
+  "tcp" "negotiated_protocol"

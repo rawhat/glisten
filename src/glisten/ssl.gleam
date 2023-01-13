@@ -76,7 +76,7 @@ pub fn set_opts(
   |> do_set_opts(socket, _)
 }
 
-pub external fn handshake(socket: Socket) -> Result(Nil, Nil) =
+pub external fn handshake(socket: Socket) -> Result(Socket, Nil) =
   "ssl" "handshake"
 
 /// Start listening over SSL on a port with the given options
@@ -88,3 +88,6 @@ pub fn listen(
   |> options.merge_with_defaults
   |> do_listen(port, _)
 }
+
+pub external fn negotiated_protocol(socket: Socket) -> Result(String, String) =
+  "ssl_ffi" "negotiated_protocol"

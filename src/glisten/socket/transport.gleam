@@ -42,7 +42,10 @@ type SetOpts =
   fn(Socket, List(options.TcpOption)) -> Result(Nil, Nil)
 
 type Handshake =
-  fn(Socket) -> Result(Nil, Nil)
+  fn(Socket) -> Result(Socket, Nil)
+
+type NegotiatedProtocol =
+  fn(Socket) -> Result(String, String)
 
 pub type Transport {
   Ssl(
@@ -52,6 +55,7 @@ pub type Transport {
     controlling_process: ControllingProcess,
     handshake: Handshake,
     listen: Listen,
+    negotiated_protocol: NegotiatedProtocol,
     receive: Receive,
     receive_timeout: ReceiveTimeout,
     send: Send,
@@ -66,6 +70,7 @@ pub type Transport {
     controlling_process: ControllingProcess,
     handshake: Handshake,
     listen: Listen,
+    negotiated_protocol: NegotiatedProtocol,
     receive: Receive,
     receive_timeout: ReceiveTimeout,
     send: Send,
@@ -83,6 +88,9 @@ pub fn tcp() -> Transport {
     controlling_process: tcp.controlling_process,
     handshake: tcp.handshake,
     listen: tcp.listen,
+    negotiated_protocol: fn(_socket) {
+      Error("Can't negotiate protocol on tcp")
+    },
     receive: tcp.receive,
     receive_timeout: tcp.receive_timeout,
     send: tcp.send,
@@ -100,6 +108,7 @@ pub fn ssl() -> Transport {
     controlling_process: ssl.controlling_process,
     handshake: ssl.handshake,
     listen: ssl.listen,
+    negotiated_protocol: ssl.negotiated_protocol,
     receive: ssl.receive,
     receive_timeout: ssl.receive_timeout,
     send: ssl.send,

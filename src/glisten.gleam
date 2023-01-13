@@ -6,7 +6,7 @@ import glisten/socket.{Closed, ListenSocket, SocketReason, Timeout}
 import glisten/tcp
 import glisten/ssl
 import gleam/otp/actor
-import glisten/socket/options.{Certfile, Keyfile}
+import glisten/socket/options.{AlpnPreferredProtocols, Certfile, Keyfile}
 
 /// Reasons that `serve` might fail
 pub type StartError {
@@ -64,7 +64,11 @@ pub fn serve_ssl(
   assert Ok(_nil) = start_ssl()
   try _ =
     port
-    |> ssl.listen([Certfile(certfile), Keyfile(keyfile)])
+    |> ssl.listen([
+      Certfile(certfile),
+      Keyfile(keyfile),
+      AlpnPreferredProtocols(["h2", "http/1.1"]),
+    ])
     |> result.map_error(fn(err) {
       case err {
         Closed -> ListenerClosed
