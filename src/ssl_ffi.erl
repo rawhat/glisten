@@ -56,5 +56,5 @@ negotiated_protocol(Socket) ->
     {error, _} ->
       {error, "Socket not negotiated"};
     Protocol ->
-      {ok, Protocol}
+      Protocol
   end.
