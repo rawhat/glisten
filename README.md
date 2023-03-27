@@ -41,7 +41,7 @@ import glisten
 
 pub fn main() {
   handler.func(fn(msg, state) {
-    assert Ok(_) = tcp.send(state.socket, bit_builder.from_bit_string(msg))
+    let assert Ok(_) = tcp.send(state.socket, bit_builder.from_bit_string(msg))
     actor.Continue(state)
   })
   |> acceptor.new_pool
@@ -58,7 +58,7 @@ import glisten/ssl
 
 pub fn main() {
   handler.func(fn(msg, state) {
-    assert Ok(_) = ssl.send(state.socket, bit_builder.from_bit_string(msg))
+    let assert Ok(_) = ssl.send(state.socket, bit_builder.from_bit_string(msg))
     actor.Continue(state)
   })
   |> acceptor.new_pool
@@ -88,10 +88,10 @@ pub fn main() {
   // This function is omitted for brevity.  It simply manages a
   // `gleam/set.{Set}` of `Sender(HandlerMessage)`s that "broadcast" the
   // connect/disconnect events to all clients.
-  assert Ok(connections) = start_connection_actor()
+  let assert Ok(connections) = start_connection_actor()
 
   handler.func(fn(msg, state) {
-    assert Ok(_) = tcp.send(state.socket, bit_builder.from_bit_string(msg))
+    let assert Ok(_) = tcp.send(state.socket, bit_builder.from_bit_string(msg))
     actor.Continue(state)
   })
   |> acceptor.new_pool

@@ -24,7 +24,7 @@ pub fn serve(
   port: Int,
   with_pool: fn(ListenSocket) -> Pool(data),
 ) -> Result(Nil, StartError) {
-  try _ =
+  use _ <- result.then(
     port
     |> tcp.listen([])
     |> result.map_error(fn(err) {
@@ -45,7 +45,8 @@ pub fn serve(
           actor.InitCrashed(reason) -> AcceptorCrashed(reason)
         }
       })
-    })
+    }),
+  )
 
   Ok(Nil)
 }
@@ -61,8 +62,8 @@ pub fn serve_ssl(
   keyfile keyfile: String,
   with_pool with_pool: fn(ListenSocket) -> Pool(data),
 ) -> Result(Nil, StartError) {
-  assert Ok(_nil) = start_ssl()
-  try _ =
+  let assert Ok(_nil) = start_ssl()
+  use _ <- result.then(
     port
     |> ssl.listen([
       Certfile(certfile),
@@ -87,7 +88,8 @@ pub fn serve_ssl(
           actor.InitCrashed(reason) -> AcceptorCrashed(reason)
         }
       })
-    })
+    }),
+  )
 
   Ok(Nil)
 }

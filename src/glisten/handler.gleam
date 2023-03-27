@@ -113,7 +113,7 @@ pub fn start(
         msg ->
           case handler.loop(msg, state) {
             actor.Continue(next_state) -> {
-              assert Ok(Nil) =
+              let assert Ok(Nil) =
                 state.transport.set_opts(
                   state.socket,
                   [options.ActiveMode(options.Once)],

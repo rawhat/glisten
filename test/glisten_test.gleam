@@ -25,12 +25,12 @@ pub fn it_echoes_messages_test() {
   let _server =
     process.start(
       fn() {
-        assert Nil = process.send(client_subject, Connected)
-        assert Ok(listener) =
+        let assert Nil = process.send(client_subject, Connected)
+        let assert Ok(listener) =
           tcp.listen(9999, [options.ActiveMode(options.Passive)])
-        assert Ok(socket) = tcp.accept(listener)
+        let assert Ok(socket) = tcp.accept(listener)
         let loop = fn() {
-          assert Ok(msg) = tcp.receive_timeout(socket, 0, 200)
+          let assert Ok(msg) = tcp.receive_timeout(socket, 0, 200)
           process.send(client_subject, Response(msg))
         }
         loop()
@@ -38,21 +38,22 @@ pub fn it_echoes_messages_test() {
       False,
     )
 
-  assert Ok(Connected) = process.receive(client_subject, 200)
+  let assert Ok(Connected) = process.receive(client_subject, 200)
 
   let client = tcp_client.connect()
-  assert Ok(_) =
+  let assert Ok(_) =
     tcp.send(client, bit_builder.from_bit_string(<<"hi mom":utf8>>))
-  assert Ok(Response(resp)) = process.receive(client_subject, 200)
+  let assert Ok(Response(resp)) = process.receive(client_subject, 200)
 
   should.equal(resp, <<"hi mom":utf8>>)
 }
 
 pub fn it_accepts_from_the_pool_test() {
   let client_sender = process.new_subject()
-  assert Ok(Nil) =
+  let assert Ok(Nil) =
     handler.func(fn(msg, state) {
-      assert Ok(_) = tcp.send(state.socket, bit_builder.from_bit_string(msg))
+      let assert Ok(_) =
+        tcp.send(state.socket, bit_builder.from_bit_string(msg))
       actor.Continue(state)
     })
     |> acceptor.new_pool
@@ -68,15 +69,16 @@ pub fn it_accepts_from_the_pool_test() {
             dynamic.unsafe_coerce,
           )
         let client = tcp_client.connect()
-        assert Ok(_) =
+        let assert Ok(_) =
           tcp.send(client, bit_builder.from_bit_string(<<"hi mom":utf8>>))
-        assert Ok(#(_tcp, _port, msg)) = process.select(client_selector, 200)
+        let assert Ok(#(_tcp, _port, msg)) =
+          process.select(client_selector, 200)
         process.send(client_sender, msg)
       },
       False,
     )
 
-  assert Ok(msg) = process.receive(client_sender, 200)
+  let assert Ok(msg) = process.receive(client_sender, 200)
 
   should.equal(msg, <<"hi mom":utf8>>)
 }
