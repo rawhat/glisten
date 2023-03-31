@@ -51,10 +51,11 @@ pub fn start(
       case msg {
         AcceptConnection(listener) -> {
           let res = {
-            try sock =
+            use sock <- result.then(
               state.transport.accept(listener)
-              |> result.replace_error(AcceptError)
-            try start =
+              |> result.replace_error(AcceptError),
+            )
+            use start <- result.then(
               Handler(
                 sock,
                 pool.initial_data,
@@ -64,7 +65,8 @@ pub fn start(
                 pool.transport,
               )
               |> handler.start
-              |> result.replace_error(HandlerError)
+              |> result.replace_error(HandlerError),
+            )
             sock
             |> state.transport.controlling_process(process.subject_owner(start))
             |> result.replace_error(ControlError)

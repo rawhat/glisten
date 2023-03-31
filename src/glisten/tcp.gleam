@@ -60,7 +60,7 @@ pub external fn do_shutdown(
   "tcp_ffi" "shutdown"
 
 pub fn shutdown(socket: Socket) -> Result(Nil, SocketReason) {
-  assert Ok(write) = atom.from_string("write")
+  let assert Ok(write) = atom.from_string("write")
   do_shutdown(socket, write)
 }
 

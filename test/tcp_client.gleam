@@ -11,7 +11,7 @@ external fn tcp_connect(
   "gen_tcp" "connect"
 
 pub fn connect() -> Socket {
-  assert Ok(client) =
+  let assert Ok(client) =
     tcp_connect(
       charlist.from_string("localhost"),
       9999,
