@@ -41,7 +41,7 @@ import glisten
 
 pub fn main() {
   handler.func(fn(msg, state) {
-    assert Ok(_) = tcp.send(state.socket, bit_builder.from_bit_string(msg))
+    let assert Ok(_) = tcp.send(state.socket, bit_builder.from_bit_string(msg))
     actor.Continue(state)
   })
   |> acceptor.new_pool
@@ -58,7 +58,7 @@ import glisten/ssl
 
 pub fn main() {
   handler.func(fn(msg, state) {
-    assert Ok(_) = ssl.send(state.socket, bit_builder.from_bit_string(msg))
+    let assert Ok(_) = ssl.send(state.socket, bit_builder.from_bit_string(msg))
     actor.Continue(state)
   })
   |> acceptor.new_pool
@@ -88,10 +88,10 @@ pub fn main() {
   // This function is omitted for brevity.  It simply manages a
   // `gleam/set.{Set}` of `Sender(HandlerMessage)`s that "broadcast" the
   // connect/disconnect events to all clients.
-  assert Ok(connections) = start_connection_actor()
+  let assert Ok(connections) = start_connection_actor()
 
   handler.func(fn(msg, state) {
-    assert Ok(_) = tcp.send(state.socket, bit_builder.from_bit_string(msg))
+    let assert Ok(_) = tcp.send(state.socket, bit_builder.from_bit_string(msg))
     actor.Continue(state)
   })
   |> acceptor.new_pool
@@ -115,13 +115,14 @@ to manage connections yourself, or only handle a small number at a time.
 
 ```gleam
 import gleam/io
+import gleam/result
 import glisten/socket/options.{ActiveMode, Passive}
 import glisten/tcp
 
 pub fn main() {
-  try listener = tcp.listen(8000, [ActiveMode(Passive)])
-  try socket = tcp.accept(listener)
-  try msg = tcp.receive(socket, 0)
+  use listener <- result.then(tcp.listen(8000, [ActiveMode(Passive)]))
+  use socket <- result.then(tcp.accept(listener))
+  use msg <- result.then(tcp.receive(socket, 0))
   io.debug(#("got a msg", msg))
 
   Ok(Nil)
