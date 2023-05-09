@@ -1,5 +1,6 @@
 import gleam/bit_builder.{BitBuilder}
 import gleam/dynamic
+import gleam/erlang/atom
 import gleam/erlang/process.{Subject}
 import gleam/function
 import gleam/option.{Option, Some}
@@ -20,9 +21,9 @@ pub type HandlerMessage {
   ReceiveMessage(BitString)
   SendMessage(BitBuilder)
   Ssl(socket: Port, data: BitString)
-  SslClosed(Nil)
+  SslClosed
   Tcp(socket: Port, data: BitString)
-  TcpClosed(Nil)
+  TcpClosed
 }
 
 pub type LoopState(data) {
@@ -57,13 +58,34 @@ pub fn start(
       let subject = process.new_subject()
       let selector =
         process.new_selector()
+        |> process.selecting_record3(
+          atom.create_from_string("tcp"),
+          fn(_sock, data) {
+            data
+            |> dynamic.bit_string
+            |> result.unwrap(<<>>)
+            |> ReceiveMessage
+          },
+        )
+        |> process.selecting_record3(
+          atom.create_from_string("ssl"),
+          fn(_sock, data) {
+            data
+            |> dynamic.bit_string
+            |> result.unwrap(<<>>)
+            |> ReceiveMessage
+          },
+        )
+        |> process.selecting_record2(
+          atom.create_from_string("ssl_closed"),
+          fn(_nil) { SslClosed },
+        )
+        |> process.selecting_record2(
+          atom.create_from_string("tcp_closed"),
+          fn(_nil) { TcpClosed },
+        )
         |> process.selecting(subject, function.identity)
-        |> process.selecting_anything(fn(msg) {
-          case dynamic.unsafe_coerce(msg) {
-            Tcp(_sock, data) | Ssl(_sock, data) -> ReceiveMessage(data)
-            msg -> msg
-          }
-        })
+
       actor.Ready(
         LoopState(
           handler.socket,
@@ -77,7 +99,7 @@ pub fn start(
     init_timeout: 1000,
     loop: fn(msg, state) {
       case msg {
-        TcpClosed(_) | SslClosed(_) | Close ->
+        TcpClosed | SslClosed | Close ->
           case state.transport.close(state.socket) {
             Ok(Nil) -> {
               let _ = case handler.on_close {
