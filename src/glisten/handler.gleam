@@ -103,7 +103,7 @@ pub fn start(
           case state.transport.close(state.socket) {
             Ok(Nil) -> {
               let _ = case handler.on_close {
-                Some(func) -> func(state.sender)
+                Some(on_close) -> on_close(state.sender)
                 _ -> Nil
               }
               actor.Stop(process.Normal)
@@ -116,7 +116,7 @@ pub fn start(
           |> result.replace_error("Failed to handshake socket")
           |> result.map(fn(_ok) {
             let _ = case handler.on_init {
-              Some(func) -> func(state.sender)
+              Some(on_init) -> on_init(state.sender)
               _ -> Nil
             }
           })
