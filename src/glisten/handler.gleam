@@ -26,8 +26,12 @@ pub type HandlerMessage {
   TcpClosed
 }
 
+pub type ClientIp =
+  Result(#(#(Int, Int, Int, Int), Int), Nil)
+
 pub type LoopState(data) {
   LoopState(
+    client_ip: ClientIp,
     socket: Socket,
     sender: Subject(HandlerMessage),
     transport: Transport,
@@ -88,9 +92,10 @@ pub fn start(
 
       actor.Ready(
         LoopState(
-          handler.socket,
-          subject,
-          handler.transport,
+          client_ip: peername(handler.socket),
+          socket: handler.socket,
+          sender: subject,
+          transport: handler.transport,
           data: handler.initial_data,
         ),
         selector,
@@ -180,3 +185,8 @@ pub fn func(handler func: HandlerFunc(data)) -> LoopFn(data) {
     }
   }
 }
+
+external fn peername(
+  socket: Socket,
+) -> Result(#(#(Int, Int, Int, Int), Int), Nil) =
+  "inet" "peername"
