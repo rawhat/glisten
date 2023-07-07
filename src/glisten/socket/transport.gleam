@@ -118,5 +118,5 @@ pub fn ssl() -> Transport {
   )
 }
 
-pub external fn socket_info(socket: Socket) -> Map(a, b) =
-  "socket" "info"
+@external(erlang, "socket", "info")
+pub fn socket_info(socket: Socket) -> Map(a, b)

@@ -3,12 +3,11 @@ import gleam/erlang/atom
 import gleam/erlang/charlist.{Charlist}
 import glisten/socket.{Socket}
 
-external fn tcp_connect(
-  host: Charlist,
-  port: Int,
-  options: List(Dynamic),
-) -> Result(Socket, Nil) =
-  "gen_tcp" "connect"
+@external(erlang, "gen_tcp", "connect")
+fn tcp_connect(host: Charlist, port: Int, options: List(Dynamic)) -> Result(
+  Socket,
+  Nil,
+)
 
 pub fn connect() -> Socket {
   let assert Ok(client) =

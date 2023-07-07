@@ -48,8 +48,8 @@ pub fn serve(
   |> result.replace(Nil)
 }
 
-external fn start_ssl() -> Result(Nil, Dynamic) =
-  "ssl_ffi" "start_ssl"
+@external(erlang, "ssl_ffi", "start_ssl")
+fn start_ssl() -> Result(Nil, Dynamic)
 
 /// Sets up a SSL listener with the given acceptor pool. The second argument
 /// can be obtained from the `glisten/acceptor.{acceptor_pool}` function.

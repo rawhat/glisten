@@ -7,62 +7,49 @@ import gleam/map
 import glisten/socket.{ListenSocket, Socket, SocketReason}
 import glisten/socket/options
 
-pub external fn controlling_process(
-  socket: Socket,
-  pid: Pid,
-) -> Result(Nil, Atom) =
-  "ssl_ffi" "controlling_process"
+@external(erlang, "ssl_ffi", "controlling_process")
+pub fn controlling_process(socket: Socket, pid: Pid) -> Result(Nil, Atom)
 
-external fn do_listen(
-  port: Int,
-  options: List(options.TcpOption),
-) -> Result(ListenSocket, SocketReason) =
-  "ssl" "listen"
+@external(erlang, "ssl", "listen")
+fn do_listen(port: Int, options: List(options.TcpOption)) -> Result(
+  ListenSocket,
+  SocketReason,
+)
 
-pub external fn accept_timeout(
-  socket: ListenSocket,
-  timeout: Int,
-) -> Result(Socket, SocketReason) =
-  "ssl" "transport_accept"
+@external(erlang, "ssl", "transport_accept")
+pub fn accept_timeout(socket: ListenSocket, timeout: Int) -> Result(
+  Socket,
+  SocketReason,
+)
 
-pub external fn accept(socket: ListenSocket) -> Result(Socket, SocketReason) =
-  "ssl" "transport_accept"
+@external(erlang, "ssl", "transport_accept")
+pub fn accept(socket: ListenSocket) -> Result(Socket, SocketReason)
 
-pub external fn receive_timeout(
-  socket: Socket,
-  length: Int,
-  timeout: Int,
-) -> Result(BitString, SocketReason) =
-  "ssl" "recv"
+@external(erlang, "ssl", "recv")
+pub fn receive_timeout(socket: Socket, length: Int, timeout: Int) -> Result(
+  BitString,
+  SocketReason,
+)
 
-pub external fn receive(
-  socket: Socket,
-  length: Int,
-) -> Result(BitString, SocketReason) =
-  "ssl" "recv"
+@external(erlang, "ssl", "recv")
+pub fn receive(socket: Socket, length: Int) -> Result(BitString, SocketReason)
 
-pub external fn send(
-  socket: Socket,
-  packet: BitBuilder,
-) -> Result(Nil, SocketReason) =
-  "ssl_ffi" "send"
+@external(erlang, "ssl_ffi", "send")
+pub fn send(socket: Socket, packet: BitBuilder) -> Result(Nil, SocketReason)
 
-pub external fn close(socket: Socket) -> Result(Nil, SocketReason) =
-  "ssl_ffi" "close"
+@external(erlang, "ssl_ffi", "close")
+pub fn close(socket: Socket) -> Result(Nil, SocketReason)
 
-pub external fn do_shutdown(
-  socket: Socket,
-  write: Atom,
-) -> Result(Nil, SocketReason) =
-  "ssl_ffi" "shutdown"
+@external(erlang, "ssl_ffi", "shutdown")
+pub fn do_shutdown(socket: Socket, write: Atom) -> Result(Nil, SocketReason)
 
 pub fn shutdown(socket: Socket) -> Result(Nil, SocketReason) {
   let assert Ok(write) = atom.from_string("write")
   do_shutdown(socket, write)
 }
 
-external fn do_set_opts(socket: Socket, opts: List(Dynamic)) -> Result(Nil, Nil) =
-  "ssl_ffi" "set_opts"
+@external(erlang, "ssl_ffi", "set_opts")
+fn do_set_opts(socket: Socket, opts: List(Dynamic)) -> Result(Nil, Nil)
 
 /// Update the optons for a socket (mutates the socket)
 pub fn set_opts(
@@ -76,8 +63,8 @@ pub fn set_opts(
   |> do_set_opts(socket, _)
 }
 
-pub external fn handshake(socket: Socket) -> Result(Socket, Nil) =
-  "ssl" "handshake"
+@external(erlang, "ssl", "handshake")
+pub fn handshake(socket: Socket) -> Result(Socket, Nil)
 
 /// Start listening over SSL on a port with the given options
 pub fn listen(
@@ -89,5 +76,5 @@ pub fn listen(
   |> do_listen(port, _)
 }
 
-pub external fn negotiated_protocol(socket: Socket) -> Result(String, String) =
-  "ssl_ffi" "negotiated_protocol"
+@external(erlang, "ssl_ffi", "negotiated_protocol")
+pub fn negotiated_protocol(socket: Socket) -> Result(String, String)

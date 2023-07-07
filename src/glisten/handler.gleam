@@ -186,7 +186,5 @@ pub fn func(handler func: HandlerFunc(data)) -> LoopFn(data) {
   }
 }
 
-external fn peername(
-  socket: Socket,
-) -> Result(#(#(Int, Int, Int, Int), Int), Nil) =
-  "inet" "peername"
+@external(erlang, "inet", "peername")
+fn peername(socket: Socket) -> Result(#(#(Int, Int, Int, Int), Int), Nil)
