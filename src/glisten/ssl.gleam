@@ -11,25 +11,26 @@ import glisten/socket/options
 pub fn controlling_process(socket: Socket, pid: Pid) -> Result(Nil, Atom)
 
 @external(erlang, "ssl", "listen")
-fn do_listen(port: Int, options: List(options.TcpOption)) -> Result(
-  ListenSocket,
-  SocketReason,
-)
+fn do_listen(
+  port: Int,
+  options: List(options.TcpOption),
+) -> Result(ListenSocket, SocketReason)
 
 @external(erlang, "ssl", "transport_accept")
-pub fn accept_timeout(socket: ListenSocket, timeout: Int) -> Result(
-  Socket,
-  SocketReason,
-)
+pub fn accept_timeout(
+  socket: ListenSocket,
+  timeout: Int,
+) -> Result(Socket, SocketReason)
 
 @external(erlang, "ssl", "transport_accept")
 pub fn accept(socket: ListenSocket) -> Result(Socket, SocketReason)
 
 @external(erlang, "ssl", "recv")
-pub fn receive_timeout(socket: Socket, length: Int, timeout: Int) -> Result(
-  BitString,
-  SocketReason,
-)
+pub fn receive_timeout(
+  socket: Socket,
+  length: Int,
+  timeout: Int,
+) -> Result(BitString, SocketReason)
 
 @external(erlang, "ssl", "recv")
 pub fn receive(socket: Socket, length: Int) -> Result(BitString, SocketReason)
