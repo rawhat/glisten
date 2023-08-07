@@ -79,3 +79,6 @@ pub fn listen(
 
 @external(erlang, "ssl_ffi", "negotiated_protocol")
 pub fn negotiated_protocol(socket: Socket) -> Result(String, String)
+
+@external(erlang, "ssl", "peername")
+pub fn peername(socket: Socket) -> Result(#(#(Int, Int, Int, Int), Int), Nil)

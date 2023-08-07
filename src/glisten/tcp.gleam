@@ -80,3 +80,6 @@ pub fn handshake(socket: Socket) -> Result(Socket, Nil) {
 
 @external(erlang, "tcp", "negotiated_protocol")
 pub fn negotiated_protocol(socket: Socket) -> a
+
+@external(erlang, "inet", "peername")
+pub fn peername(socket: Socket) -> Result(#(#(Int, Int, Int, Int), Int), Nil)

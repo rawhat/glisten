@@ -47,6 +47,9 @@ type Handshake =
 type NegotiatedProtocol =
   fn(Socket) -> Result(String, String)
 
+type PeerName =
+  fn(Socket) -> Result(#(#(Int, Int, Int, Int), Int), Nil)
+
 pub type Transport {
   Ssl(
     accept: Accept,
@@ -56,6 +59,7 @@ pub type Transport {
     handshake: Handshake,
     listen: Listen,
     negotiated_protocol: NegotiatedProtocol,
+    peername: PeerName,
     receive: Receive,
     receive_timeout: ReceiveTimeout,
     send: Send,
@@ -71,6 +75,7 @@ pub type Transport {
     handshake: Handshake,
     listen: Listen,
     negotiated_protocol: NegotiatedProtocol,
+    peername: PeerName,
     receive: Receive,
     receive_timeout: ReceiveTimeout,
     send: Send,
@@ -91,6 +96,7 @@ pub fn tcp() -> Transport {
     negotiated_protocol: fn(_socket) {
       Error("Can't negotiate protocol on tcp")
     },
+    peername: tcp.peername,
     receive: tcp.receive,
     receive_timeout: tcp.receive_timeout,
     send: tcp.send,
@@ -109,6 +115,7 @@ pub fn ssl() -> Transport {
     handshake: ssl.handshake,
     listen: ssl.listen,
     negotiated_protocol: ssl.negotiated_protocol,
+    peername: ssl.peername,
     receive: ssl.receive,
     receive_timeout: ssl.receive_timeout,
     send: ssl.send,

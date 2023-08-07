@@ -92,7 +92,7 @@ pub fn start(
 
       actor.Ready(
         LoopState(
-          client_ip: peername(handler.socket),
+          client_ip: handler.transport.peername(handler.socket),
           socket: handler.socket,
           sender: subject,
           transport: handler.transport,
@@ -185,6 +185,3 @@ pub fn func(handler func: HandlerFunc(data)) -> LoopFn(data) {
     }
   }
 }
-
-@external(erlang, "inet", "peername")
-fn peername(socket: Socket) -> Result(#(#(Int, Int, Int, Int), Int), Nil)
