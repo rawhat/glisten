@@ -1,5 +1,5 @@
 name = "glisten"
-version = "0.8.0"
+version = "0.8.1"
 description = "a shiny Gleam TCP/SSL server"
 licences = ["Apache-2.0"]
 repository = { type = "github", user = "rawhat", repo = "glisten" }
