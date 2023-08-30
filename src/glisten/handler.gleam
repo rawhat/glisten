@@ -39,14 +39,14 @@ pub type LoopState(data) {
   )
 }
 
-pub type LoopFn(data) =
-  fn(HandlerMessage, LoopState(data)) -> actor.Next(LoopState(data))
+pub type LoopFn(message, data) =
+  fn(HandlerMessage, LoopState(data)) -> actor.Next(message, LoopState(data))
 
 pub type Handler(data) {
   Handler(
     socket: Socket,
     initial_data: data,
-    loop: LoopFn(data),
+    loop: LoopFn(HandlerMessage, data),
     on_init: Option(fn(Subject(HandlerMessage)) -> Nil),
     on_close: Option(fn(Subject(HandlerMessage)) -> Nil),
     transport: Transport,
@@ -132,20 +132,20 @@ pub fn start(
             )
             |> result.replace_error("Failed to set socket active")
           })
-          |> result.replace(actor.Continue(state))
+          |> result.replace(actor.continue(state))
           |> result.map_error(fn(reason) {
             actor.Stop(process.Abnormal(reason))
           })
           |> result.unwrap_both
         msg ->
           case handler.loop(msg, state) {
-            actor.Continue(next_state) -> {
+            actor.Continue(next_state, selector) -> {
               let assert Ok(Nil) =
                 state.transport.set_opts(
                   state.socket,
                   [options.ActiveMode(options.Once)],
                 )
-              actor.Continue(next_state)
+              actor.Continue(next_state, selector)
             }
             msg -> msg
           }
@@ -155,22 +155,22 @@ pub fn start(
 }
 
 pub type HandlerFunc(data) =
-  fn(BitString, LoopState(data)) -> actor.Next(LoopState(data))
+  fn(BitString, LoopState(data)) -> actor.Next(HandlerMessage, LoopState(data))
 
 /// This helper will generate a TCP handler that will call your handler function
 /// with the BitString data in the packet as well as the LoopState, with any
 /// associated state data you are maintaining
-pub fn func(handler func: HandlerFunc(data)) -> LoopFn(data) {
+pub fn func(handler func: HandlerFunc(data)) -> LoopFn(HandlerMessage, data) {
   fn(msg, state: LoopState(data)) {
     case msg {
       Tcp(_, _) | Ready -> {
         logger.error(#("Received an unexpected TCP message", msg))
-        actor.Continue(state)
+        actor.continue(state)
       }
       ReceiveMessage(data) -> func(data, state)
       SendMessage(data) ->
         case state.transport.send(state.socket, data) {
-          Ok(_nil) -> actor.Continue(state)
+          Ok(_nil) -> actor.continue(state)
           Error(reason) -> {
             logger.error(#("Failed to send data", reason))
             actor.Stop(process.Abnormal("Failed to send data"))

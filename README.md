@@ -42,7 +42,7 @@ import glisten
 pub fn main() {
   handler.func(fn(msg, state) {
     let assert Ok(_) = tcp.send(state.socket, bit_builder.from_bit_string(msg))
-    actor.Continue(state)
+    actor.continue(state)
   })
   |> acceptor.new_pool
   |> glisten.serve(8080, _)
@@ -59,7 +59,7 @@ import glisten/ssl
 pub fn main() {
   handler.func(fn(msg, state) {
     let assert Ok(_) = ssl.send(state.socket, bit_builder.from_bit_string(msg))
-    actor.Continue(state)
+    actor.continue(state)
   })
   |> acceptor.new_pool
   |> glisten.serve_ssl(
@@ -92,7 +92,7 @@ pub fn main() {
 
   handler.func(fn(msg, state) {
     let assert Ok(_) = tcp.send(state.socket, bit_builder.from_bit_string(msg))
-    actor.Continue(state)
+    actor.continue(state)
   })
   |> acceptor.new_pool
   |> acceptor.with_init(fn(sender) {
