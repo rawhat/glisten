@@ -79,7 +79,7 @@ pub fn start(
             }
             _val -> {
               actor.send(sender, AcceptConnection(listener))
-              actor.Continue(state)
+              actor.continue(state)
             }
           }
         }
@@ -95,7 +95,7 @@ pub fn start(
 pub type Pool(data) {
   Pool(
     listener_socket: ListenSocket,
-    handler: LoopFn(data),
+    handler: LoopFn(HandlerMessage, data),
     initial_data: data,
     pool_count: Int,
     on_init: Option(fn(Subject(HandlerMessage)) -> Nil),
@@ -105,7 +105,9 @@ pub type Pool(data) {
 }
 
 /// Initialize acceptor pool where each handler has no state
-pub fn new_pool(handler: LoopFn(Nil)) -> fn(ListenSocket) -> Pool(Nil) {
+pub fn new_pool(
+  handler: LoopFn(HandlerMessage, Nil),
+) -> fn(ListenSocket) -> Pool(Nil) {
   fn(listener_socket) {
     Pool(
       listener_socket: listener_socket,
@@ -121,7 +123,7 @@ pub fn new_pool(handler: LoopFn(Nil)) -> fn(ListenSocket) -> Pool(Nil) {
 
 /// Initialize an acceptor pool where each handler holds some state
 pub fn new_pool_with_data(
-  handler: LoopFn(data),
+  handler: LoopFn(HandlerMessage, data),
   initial_data: data,
 ) -> fn(ListenSocket) -> Pool(data) {
   fn(listener_socket) {

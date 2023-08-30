@@ -54,7 +54,7 @@ pub fn it_accepts_from_the_pool_test() {
     handler.func(fn(msg, state) {
       let assert Ok(_) =
         tcp.send(state.socket, bit_builder.from_bit_string(msg))
-      actor.Continue(state)
+      actor.continue(state)
     })
     |> acceptor.new_pool
     |> acceptor.with_pool_size(1)
