@@ -1,11 +1,11 @@
-import gleam/erlang/process.{Abnormal, Subject}
+import gleam/erlang/process.{Abnormal, Selector, Subject}
 import gleam/function
 import gleam/iterator
-import gleam/option.{None, Option, Some}
+import gleam/option.{None, Option}
 import gleam/otp/actor
 import gleam/otp/supervisor
 import gleam/result
-import glisten/handler.{Handler, HandlerMessage, LoopFn, Ready}
+import glisten/handler.{Handler, Internal, Loop, Ready}
 import glisten/logger
 import glisten/socket.{ListenSocket, Socket}
 import glisten/socket/transport.{Transport}
@@ -31,7 +31,7 @@ pub type AcceptorState {
 /// Worker process that handles `accept`ing connections and starts a new process
 /// which receives the messages from the socket
 pub fn start(
-  pool: Pool(data),
+  pool: Pool(user_message, data),
 ) -> Result(Subject(AcceptorMessage), actor.StartError) {
   actor.start_spec(actor.Spec(
     init: fn() {
@@ -57,12 +57,11 @@ pub fn start(
             )
             use start <- result.then(
               Handler(
-                sock,
-                pool.initial_data,
-                pool.handler,
-                pool.on_init,
-                pool.on_close,
-                pool.transport,
+                socket: sock,
+                loop: pool.handler,
+                on_init: pool.on_init,
+                on_close: pool.on_close,
+                transport: pool.transport,
               )
               |> handler.start
               |> result.replace_error(HandlerError),
@@ -70,7 +69,7 @@ pub fn start(
             sock
             |> state.transport.controlling_process(process.subject_owner(start))
             |> result.replace_error(ControlError)
-            |> result.map(fn(_) { process.send(start, Ready) })
+            |> result.map(fn(_) { process.send(start, Internal(Ready)) })
           }
           case res {
             Error(reason) -> {
@@ -92,101 +91,22 @@ pub fn start(
   ))
 }
 
-pub type Pool(data) {
+pub type Pool(user_message, data) {
   Pool(
     listener_socket: ListenSocket,
-    handler: LoopFn(HandlerMessage, data),
-    initial_data: data,
+    handler: Loop(user_message, data),
     pool_count: Int,
-    on_init: Option(fn(Subject(HandlerMessage)) -> Nil),
-    on_close: Option(fn(Subject(HandlerMessage)) -> Nil),
+    on_init: fn() -> #(data, Option(Selector(user_message))),
+    on_close: Option(fn() -> Nil),
     transport: Transport,
   )
-}
-
-/// Initialize acceptor pool where each handler has no state
-pub fn new_pool(
-  handler: LoopFn(HandlerMessage, Nil),
-) -> fn(ListenSocket) -> Pool(Nil) {
-  fn(listener_socket) {
-    Pool(
-      listener_socket: listener_socket,
-      handler: handler,
-      initial_data: Nil,
-      pool_count: 10,
-      on_init: None,
-      on_close: None,
-      transport: transport.tcp(),
-    )
-  }
-}
-
-/// Initialize an acceptor pool where each handler holds some state
-pub fn new_pool_with_data(
-  handler: LoopFn(HandlerMessage, data),
-  initial_data: data,
-) -> fn(ListenSocket) -> Pool(data) {
-  fn(listener_socket) {
-    Pool(
-      listener_socket: listener_socket,
-      handler: handler,
-      initial_data: initial_data,
-      pool_count: 10,
-      on_init: None,
-      on_close: None,
-      transport: transport.tcp(),
-    )
-  }
-}
-
-/// Add an `on_init` handler to the acceptor pool
-pub fn with_init(
-  make_pool: fn(ListenSocket) -> Pool(data),
-  func: fn(Subject(HandlerMessage)) -> Nil,
-) -> fn(ListenSocket) -> Pool(data) {
-  fn(socket) {
-    let pool = make_pool(socket)
-    Pool(..pool, on_init: Some(func))
-  }
-}
-
-/// Add an `on_close` handler to the acceptor pool
-pub fn with_close(
-  make_pool: fn(ListenSocket) -> Pool(data),
-  func: fn(Subject(HandlerMessage)) -> Nil,
-) -> fn(ListenSocket) -> Pool(data) {
-  fn(socket) {
-    let pool = make_pool(socket)
-    Pool(..pool, on_close: Some(func))
-  }
-}
-
-/// Adjust the number of TCP acceptors in the pool
-pub fn with_pool_size(
-  make_pool: fn(ListenSocket) -> Pool(data),
-  pool_count: Int,
-) -> fn(ListenSocket) -> Pool(data) {
-  fn(socket) {
-    let pool = make_pool(socket)
-    Pool(..pool, pool_count: pool_count)
-  }
-}
-
-/// Use SSL for the underlying socket.
-pub fn over_ssl(
-  make_pool: fn(ListenSocket) -> Pool(data),
-) -> fn(ListenSocket) -> Pool(data) {
-  fn(socket) {
-    let pool = make_pool(socket)
-    Pool(..pool, transport: transport.ssl())
-  }
 }
 
 /// Starts a pool of acceptors of size `pool_count`.
 ///
 /// Runs `loop_fn` on ever message received
 pub fn start_pool(
-  pool: Pool(data),
+  pool: Pool(user_message, data),
 ) -> Result(Subject(supervisor.Message), actor.StartError) {
   supervisor.start_spec(supervisor.Spec(
     argument: Nil,

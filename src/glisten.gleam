@@ -1,8 +1,11 @@
 import gleam/dynamic.{Dynamic}
-import gleam/erlang/process
+import gleam/erlang/process.{Selector}
+import gleam/option.{None, Option, Some}
 import gleam/result
-import glisten/acceptor.{Pool, over_ssl}
-import glisten/socket.{Closed, ListenSocket, SocketReason, Timeout}
+import glisten/acceptor.{Pool}
+import glisten/handler.{ClientIp}
+import glisten/socket.{Closed, Socket, SocketReason, Timeout}
+import glisten/socket/transport.{Transport}
 import glisten/tcp
 import glisten/ssl
 import gleam/otp/actor
@@ -18,11 +21,90 @@ pub type StartError {
   SystemError(SocketReason)
 }
 
-/// Sets up a TCP listener with the given acceptor pool. The second argument
-/// can be obtained from the `glisten/acceptor.{acceptor_pool}` function.
+pub type Message(user_message) {
+  Receive(BitString)
+  User(user_message)
+}
+
+pub type Connection {
+  Connection(client_ip: ClientIp, socket: Socket, transport: Transport)
+}
+
+pub type Loop(user_message, data) =
+  fn(Message(user_message), data, Connection) ->
+    actor.Next(Message(user_message), data)
+
+pub type Handler(user_message, data) {
+  Handler(
+    on_init: fn() -> #(data, Option(Selector(user_message))),
+    handler: Loop(user_message, data),
+    on_close: Option(fn() -> Nil),
+    pool_size: Int,
+  )
+}
+
+fn map_user_selector(
+  selector: Selector(Message(user_message)),
+) -> Selector(handler.LoopMessage(user_message)) {
+  process.map_selector(
+    selector,
+    fn(value) {
+      case value {
+        Receive(msg) -> handler.Receive(msg)
+        User(msg) -> handler.Custom(msg)
+      }
+    },
+  )
+}
+
+fn convert_handler(
+  loop: Loop(user_message, data),
+) -> handler.Loop(user_message, data) {
+  fn(msg, data, conn: handler.Connection) {
+    let conn = Connection(conn.client_ip, conn.socket, conn.transport)
+    case msg {
+      handler.Receive(msg) -> {
+        case loop(Receive(msg), data, conn) {
+          actor.Continue(data, selector) ->
+            actor.Continue(data, option.map(selector, map_user_selector))
+          actor.Stop(reason) -> actor.Stop(reason)
+        }
+      }
+      handler.Custom(msg) -> {
+        case loop(User(msg), data, conn) {
+          actor.Continue(data, selector) ->
+            actor.Continue(data, option.map(selector, map_user_selector))
+          actor.Stop(reason) -> actor.Stop(reason)
+        }
+      }
+    }
+  }
+}
+
+pub fn handler(
+  on_init: fn() -> #(data, Option(Selector(user_message))),
+  handler: Loop(user_message, data),
+) -> Handler(user_message, data) {
+  Handler(on_init: on_init, handler: handler, on_close: None, pool_size: 10)
+}
+
+pub fn with_close(
+  handler: Handler(user_message, data),
+  on_close: fn() -> Nil,
+) -> Handler(user_message, data) {
+  Handler(..handler, on_close: Some(on_close))
+}
+
+pub fn with_pool_size(
+  handler: Handler(user_message, data),
+  size: Int,
+) -> Handler(user_message, data) {
+  Handler(..handler, pool_size: size)
+}
+
 pub fn serve(
+  handler: Handler(user_message, data),
   port: Int,
-  with_pool: fn(ListenSocket) -> Pool(data),
 ) -> Result(Nil, StartError) {
   port
   |> tcp.listen([])
@@ -34,8 +116,14 @@ pub fn serve(
     }
   })
   |> result.then(fn(socket) {
-    socket
-    |> with_pool
+    Pool(
+      socket,
+      convert_handler(handler.handler),
+      handler.pool_size,
+      handler.on_init,
+      handler.on_close,
+      transport.tcp(),
+    )
     |> acceptor.start_pool
     |> result.map_error(fn(err) {
       case err {
@@ -51,12 +139,12 @@ pub fn serve(
 /// Sets up a SSL listener with the given acceptor pool. The second argument
 /// can be obtained from the `glisten/acceptor.{acceptor_pool}` function.
 pub fn serve_ssl(
+  handler: Handler(user_message, data),
   port port: Int,
   certfile certfile: String,
   keyfile keyfile: String,
-  with_pool with_pool: fn(ListenSocket) -> Pool(data),
 ) -> Result(Nil, StartError) {
-  let assert Ok(_nil) = start_ssl()
+  let assert Ok(_nil) = ssl.start()
   port
   |> ssl.listen([Certfile(certfile), Keyfile(keyfile)])
   |> result.map_error(fn(err) {
@@ -67,8 +155,14 @@ pub fn serve_ssl(
     }
   })
   |> result.then(fn(socket) {
-    socket
-    |> over_ssl(with_pool)
+    Pool(
+      socket,
+      convert_handler(handler.handler),
+      handler.pool_size,
+      handler.on_init,
+      handler.on_close,
+      transport.ssl(),
+    )
     |> acceptor.start_pool
     |> result.map_error(fn(err) {
       case err {
@@ -80,6 +174,3 @@ pub fn serve_ssl(
   })
   |> result.replace(Nil)
 }
-
-@external(erlang, "ssl_ffi", "start_ssl")
-fn start_ssl() -> Result(Nil, Dynamic)

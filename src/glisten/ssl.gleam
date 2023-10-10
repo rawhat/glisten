@@ -82,3 +82,6 @@ pub fn negotiated_protocol(socket: Socket) -> Result(String, String)
 
 @external(erlang, "ssl", "peername")
 pub fn peername(socket: Socket) -> Result(#(#(Int, Int, Int, Int), Int), Nil)
+
+@external(erlang, "ssl_ffi", "start_ssl")
+pub fn start() -> Result(Nil, Dynamic)

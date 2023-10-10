@@ -1,14 +1,13 @@
 import gleam/bit_builder
 import gleam/dynamic
 import gleam/erlang/process
+import gleam/option.{None}
 import gleam/otp/actor
 import gleeunit
 import gleeunit/should
-import glisten/acceptor
-import glisten/handler
 import glisten/socket/options
 import glisten/tcp
-import glisten
+import glisten.{Receive}
 import tcp_client
 
 pub fn main() {
@@ -51,14 +50,17 @@ pub fn it_echoes_messages_test() {
 pub fn it_accepts_from_the_pool_test() {
   let client_sender = process.new_subject()
   let assert Ok(Nil) =
-    handler.func(fn(msg, state) {
-      let assert Ok(_) =
-        tcp.send(state.socket, bit_builder.from_bit_string(msg))
-      actor.continue(state)
-    })
-    |> acceptor.new_pool
-    |> acceptor.with_pool_size(1)
-    |> glisten.serve(9999, _)
+    glisten.handler(
+      fn() { #(Nil, None) },
+      fn(msg, state, conn) {
+        let assert Receive(msg) = msg
+        let assert Ok(_) =
+          tcp.send(conn.socket, bit_builder.from_bit_string(msg))
+        actor.continue(state)
+      },
+    )
+    |> glisten.with_pool_size(1)
+    |> glisten.serve(9999)
 
   let _client_process =
     process.start(
