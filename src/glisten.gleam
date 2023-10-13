@@ -78,7 +78,7 @@ fn map_user_selector(
 fn convert_loop(
   loop: Loop(user_message, data),
 ) -> handler.Loop(user_message, data) {
-  fn(msg, data, conn: handler.Connection) {
+  fn(msg, data, conn: handler.Connection(user_message)) {
     let send = fn(msg) { conn.transport.send(conn.socket, msg) }
     let conn = Connection(conn.client_ip, conn.socket, conn.transport, send)
     case msg {

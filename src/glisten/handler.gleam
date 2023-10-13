@@ -46,12 +46,17 @@ pub type LoopState(user_message, data) {
   )
 }
 
-pub type Connection {
-  Connection(client_ip: ClientIp, socket: Socket, transport: Transport)
+pub type Connection(user_message) {
+  Connection(
+    client_ip: ClientIp,
+    socket: Socket,
+    transport: Transport,
+    sender: Subject(Message(user_message)),
+  )
 }
 
 pub type Loop(user_message, data) =
-  fn(LoopMessage(user_message), data, Connection) ->
+  fn(LoopMessage(user_message), data, Connection(user_message)) ->
     actor.Next(LoopMessage(user_message), data)
 
 pub type Handler(user_message, data) {
@@ -131,6 +136,7 @@ pub fn start(
           socket: state.socket,
           client_ip: state.client_ip,
           transport: state.transport,
+          sender: state.sender,
         )
       case msg {
         Internal(TcpClosed) | Internal(SslClosed) | Internal(Close) ->
