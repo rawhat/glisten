@@ -1,4 +1,4 @@
-# Unreleased
+# v0.9.0
 
 - Refactor API to mirror `mist` structure
 - Enable support for user-defined messages in addition to internal
