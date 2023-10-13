@@ -1,21 +1,36 @@
 # glisten
 
-See the docs [here](https://hexdocs.pm/glisten/).
+[![Package Version](https://img.shields.io/hexpm/v/glisten)](https://hex.pm/packages/glisten)
+[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/glisten/)
 
-It uses the `gleam_otp` library to handle the supervisor and child processes.
+A TCP server library.  Built on top of `gleam_otp`, it provides a supervisor
+over a pool of socket acceptors.  Each acceptor will block on `accept` until
+a connection is opened.  The acceptor will then spawn a handler process and
+then block again on `accept`.
 
-`glisten` provides a supervisor which manages a pool of acceptors. Each acceptor
-will block on `accept` until a connection is opened.  The acceptor will then
-spawn a handler process and then block again on `accept`.
-
-The most obvious entrypoint is `glisten.{serve}` which listens for TCP
-connections on a given port.  It also takes a handler function wrapper
-`handler.{func}` which you can provide functionality to, and the state which
-each TCP connection process will hold.  This takes the shape of:
+Here is a simple example that will echo received messages:
 
 ```gleam
-type HandlerFunc(data) =
-  fn(BitString, LoopState(data)) -> actor.Next(LoopState(data))
+import gleam/bit_builder
+import gleam/erlang/process
+import gleam/option.{None}
+import gleam/otp/actor
+import glisten.{Receive}
+
+pub fn main() {
+  let assert Ok(_) =
+    glisten.handler(
+      fn() { #(Nil, None) },
+      fn(msg, state, conn) {
+        let assert Receive(msg) = msg
+        let assert Ok(_) = conn.send(bit_builder.from_bit_string(msg))
+        actor.continue(state)
+      },
+    )
+    |> glisten.serve(3000)
+
+  process.sleep_forever()
+}
 ```
 
 SSL is also handled using the `glisten.{serve_ssl}` method.  This requires a
@@ -25,31 +40,6 @@ certificate and key file path.  The rest of the handler flow remains unchanged.
 into the socket lifecyle, you can establish some functions which are called
 for the opening and closing of the socket.  An example is provided below.
 
-## Examples
-
-Here is a basic echo server:
-
-```gleam
-import gleam/bit_builder
-import gleam/erlang/process
-import gleam/otp/actor
-import gleam/result
-import glisten/acceptor
-import glisten/handler
-import glisten/tcp
-import glisten
-
-pub fn main() {
-  handler.func(fn(msg, state) {
-    let assert Ok(_) = tcp.send(state.socket, bit_builder.from_bit_string(msg))
-    actor.continue(state)
-  })
-  |> acceptor.new_pool
-  |> glisten.serve(8080, _)
-  |> result.map(fn(_) { process.sleep_forever() })
-}
-```
-
 To serve over SSL:
 
 ```gleam
@@ -57,56 +47,17 @@ To serve over SSL:
 import glisten/ssl
 
 pub fn main() {
-  handler.func(fn(msg, state) {
-    let assert Ok(_) = ssl.send(state.socket, bit_builder.from_bit_string(msg))
-    actor.continue(state)
-  })
-  |> acceptor.new_pool
-  |> glisten.serve_ssl(
-    // Passing labeled arguments for clarity
-    port: 8080,
-    certfile: "/path/to/server.crt",
-    keyfile: "/path/to/server.key",
-    with_pool: _,
-  )
-  |> result.map(fn(_) { process.sleep_forever() })
-}
-```
-
-Managing connected clients can be handled similarly to this simple example.
-The `with_init` callback will be called after the SSL handshake, if the
-underlying socket is set up to use it.
-
-```gleam
-import gleam/bit_builder
-import gleam/erlang/process
-import glisten/handler
-import glisten/tcp
-import glisten
-
-pub fn main() {
-  // This function is omitted for brevity.  It simply manages a
-  // `gleam/set.{Set}` of `Sender(HandlerMessage)`s that "broadcast" the
-  // connect/disconnect events to all clients.
-  let assert Ok(connections) = start_connection_actor()
-
-  handler.func(fn(msg, state) {
-    let assert Ok(_) = tcp.send(state.socket, bit_builder.from_bit_string(msg))
-    actor.continue(state)
-  })
-  |> acceptor.new_pool
-  |> acceptor.with_init(fn(sender) {
-    process.send(connections, Connected(sender))
-
-    Nil
-  })
-  |> acceptor.with_close(fn(sender) {
-    process.send(connections, Disconnected(sender))
-
-    Nil
-  })
-  |> glisten.serve(8080, _)
-  |> result.map(fn(_) { process.sleep_forever() })
+  let assert Ok(_) =
+    glisten.handler(
+      // omitted
+    )
+    |> glisten.serve_ssl(
+      // Passing labeled arguments for clarity
+      port: 8080,
+      certfile: "/path/to/server.crt",
+      keyfile: "/path/to/server.key",
+    )
+  process.sleep_forever()
 }
 ```
 
@@ -129,5 +80,4 @@ pub fn main() {
 }
 ```
 
-See [mist](https://github.com/rawhat/mist) for HTTP support built on top of
-this library.
+See [mist](https://github.com/rawhat/mist) for HTTP support built on top of this library.

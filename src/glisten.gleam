@@ -1,3 +1,4 @@
+import gleam/bit_builder.{BitBuilder}
 import gleam/dynamic.{Dynamic}
 import gleam/erlang/process.{Selector}
 import gleam/option.{None, Option, Some}
@@ -21,23 +22,40 @@ pub type StartError {
   SystemError(SocketReason)
 }
 
+/// Your provided loop function with receive these message types as the
+/// first argument.
 pub type Message(user_message) {
+  /// These are messages received from the socket
   Receive(BitString)
+  /// These are any messages received from the selector returned from `on_init`
   User(user_message)
 }
 
+/// This type holds useful bits of data for the active connection.
 pub type Connection {
-  Connection(client_ip: ClientIp, socket: Socket, transport: Transport)
+  Connection(
+    /// This will be optionally a tuple for the IPv4 of the other end of the
+    /// socket
+    client_ip: ClientIp,
+    socket: Socket,
+    /// This provides a uniform interface for both TCP and SSL methods.
+    transport: Transport,
+    /// This is just a helper method which calls `transport.send` to the socket
+    /// with the provided message
+    send: fn(BitBuilder) -> Result(Nil, SocketReason),
+  )
 }
 
+/// This is the shape of the function you need to provide for the `handler`
+/// argument to `serve(_ssl)`.
 pub type Loop(user_message, data) =
   fn(Message(user_message), data, Connection) ->
     actor.Next(Message(user_message), data)
 
-pub type Handler(user_message, data) {
+pub opaque type Handler(user_message, data) {
   Handler(
     on_init: fn() -> #(data, Option(Selector(user_message))),
-    handler: Loop(user_message, data),
+    loop: Loop(user_message, data),
     on_close: Option(fn() -> Nil),
     pool_size: Int,
   )
@@ -57,11 +75,12 @@ fn map_user_selector(
   )
 }
 
-fn convert_handler(
+fn convert_loop(
   loop: Loop(user_message, data),
 ) -> handler.Loop(user_message, data) {
   fn(msg, data, conn: handler.Connection) {
-    let conn = Connection(conn.client_ip, conn.socket, conn.transport)
+    let send = fn(msg) { conn.transport.send(conn.socket, msg) }
+    let conn = Connection(conn.client_ip, conn.socket, conn.transport, send)
     case msg {
       handler.Receive(msg) -> {
         case loop(Receive(msg), data, conn) {
@@ -81,13 +100,17 @@ fn convert_handler(
   }
 }
 
+/// Create a new handler for each connection.  The required arguments mirror the
+/// `actor.start` API from `gleam_otp`.  The default pool is 10 accceptor
+/// processes.
 pub fn handler(
   on_init: fn() -> #(data, Option(Selector(user_message))),
-  handler: Loop(user_message, data),
+  loop: Loop(user_message, data),
 ) -> Handler(user_message, data) {
-  Handler(on_init: on_init, handler: handler, on_close: None, pool_size: 10)
+  Handler(on_init: on_init, loop: loop, on_close: None, pool_size: 10)
 }
 
+/// Adds a function to the handler to be called when the connection is closed.
 pub fn with_close(
   handler: Handler(user_message, data),
   on_close: fn() -> Nil,
@@ -95,6 +118,7 @@ pub fn with_close(
   Handler(..handler, on_close: Some(on_close))
 }
 
+/// Modify the size of the acceptor pool
 pub fn with_pool_size(
   handler: Handler(user_message, data),
   size: Int,
@@ -102,6 +126,7 @@ pub fn with_pool_size(
   Handler(..handler, pool_size: size)
 }
 
+/// Start the TCP server with the given handler on the provided port
 pub fn serve(
   handler: Handler(user_message, data),
   port: Int,
@@ -118,7 +143,7 @@ pub fn serve(
   |> result.then(fn(socket) {
     Pool(
       socket,
-      convert_handler(handler.handler),
+      convert_loop(handler.loop),
       handler.pool_size,
       handler.on_init,
       handler.on_close,
@@ -136,8 +161,8 @@ pub fn serve(
   |> result.replace(Nil)
 }
 
-/// Sets up a SSL listener with the given acceptor pool. The second argument
-/// can be obtained from the `glisten/acceptor.{acceptor_pool}` function.
+/// Start the SSL server with the given handler on the provided port.  The key
+/// and cert files must be provided, valid, and readable by the current user.
 pub fn serve_ssl(
   handler: Handler(user_message, data),
   port port: Int,
@@ -157,7 +182,7 @@ pub fn serve_ssl(
   |> result.then(fn(socket) {
     Pool(
       socket,
-      convert_handler(handler.handler),
+      convert_loop(handler.loop),
       handler.pool_size,
       handler.on_init,
       handler.on_close,
