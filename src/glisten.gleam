@@ -1,6 +1,6 @@
 import gleam/bit_builder.{BitBuilder}
 import gleam/dynamic.{Dynamic}
-import gleam/erlang/process.{Selector}
+import gleam/erlang/process.{Selector, Subject}
 import gleam/option.{None, Option, Some}
 import gleam/result
 import glisten/acceptor.{Pool}
@@ -32,7 +32,7 @@ pub type Message(user_message) {
 }
 
 /// This type holds useful bits of data for the active connection.
-pub type Connection {
+pub type Connection(user_message) {
   Connection(
     /// This will be optionally a tuple for the IPv4 of the other end of the
     /// socket
@@ -40,18 +40,22 @@ pub type Connection {
     socket: Socket,
     /// This provides a uniform interface for both TCP and SSL methods.
     transport: Transport,
+    subject: Subject(handler.Message(user_message)),
   )
 }
 
 /// Sends a BitBuilder message over the socket using the active transport
-pub fn send(conn: Connection, msg: BitBuilder) -> Result(Nil, SocketReason) {
+pub fn send(
+  conn: Connection(user_message),
+  msg: BitBuilder,
+) -> Result(Nil, SocketReason) {
   conn.transport.send(conn.socket, msg)
 }
 
 /// This is the shape of the function you need to provide for the `handler`
 /// argument to `serve(_ssl)`.
 pub type Loop(user_message, data) =
-  fn(Message(user_message), data, Connection) ->
+  fn(Message(user_message), data, Connection(user_message)) ->
     actor.Next(Message(user_message), data)
 
 pub opaque type Handler(user_message, data) {
@@ -81,7 +85,8 @@ fn convert_loop(
   loop: Loop(user_message, data),
 ) -> handler.Loop(user_message, data) {
   fn(msg, data, conn: handler.Connection(user_message)) {
-    let conn = Connection(conn.client_ip, conn.socket, conn.transport)
+    let conn =
+      Connection(conn.client_ip, conn.socket, conn.transport, conn.sender)
     case msg {
       handler.Packet(msg) -> {
         case loop(Packet(msg), data, conn) {
