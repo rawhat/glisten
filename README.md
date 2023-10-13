@@ -3,10 +3,10 @@
 [![Package Version](https://img.shields.io/hexpm/v/glisten)](https://hex.pm/packages/glisten)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/glisten/)
 
-A TCP server library.  Built on top of `gleam_otp`, it provides a supervisor
-over a pool of socket acceptors.  Each acceptor will block on `accept` until
-a connection is opened.  The acceptor will then spawn a handler process and
-then block again on `accept`.
+A Gleam TCP server library.  Built on top of `gleam_otp`, it provides a
+supervisor over a pool of socket acceptors.  Each acceptor will block on `accept`
+until a connection is opened.  The acceptor will then spawn a handler process
+and then block again on `accept`.
 
 Here is a simple example that will echo received messages:
 
