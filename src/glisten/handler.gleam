@@ -29,7 +29,7 @@ pub type Message(user_message) {
 }
 
 pub type LoopMessage(user_message) {
-  Receive(BitString)
+  Packet(BitString)
   Custom(user_message)
 }
 
@@ -181,7 +181,7 @@ pub fn start(
           }
         }
         Internal(ReceiveMessage(msg)) -> {
-          let msg = Receive(msg)
+          let msg = Packet(msg)
           case handler.loop(msg, state.data, connection) {
             actor.Continue(next_state, _selector) -> {
               let assert Ok(Nil) =

@@ -2,15 +2,15 @@ import gleam/bit_builder
 import gleam/erlang/process
 import gleam/option.{None}
 import gleam/otp/actor
-import glisten.{Receive}
+import glisten.{Packet}
 
 pub fn main() {
   let assert Ok(_) =
     glisten.handler(
       fn() { #(Nil, None) },
       fn(msg, state, conn) {
-        let assert Receive(msg) = msg
-        let assert Ok(_) = conn.send(bit_builder.from_bit_string(msg))
+        let assert Packet(msg) = msg
+        let assert Ok(_) = glisten.send(conn, bit_builder.from_bit_string(msg))
         actor.continue(state)
       },
     )

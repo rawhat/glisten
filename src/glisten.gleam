@@ -26,7 +26,7 @@ pub type StartError {
 /// first argument.
 pub type Message(user_message) {
   /// These are messages received from the socket
-  Receive(BitString)
+  Packet(BitString)
   /// These are any messages received from the selector returned from `on_init`
   User(user_message)
 }
@@ -40,10 +40,12 @@ pub type Connection {
     socket: Socket,
     /// This provides a uniform interface for both TCP and SSL methods.
     transport: Transport,
-    /// This is just a helper method which calls `transport.send` to the socket
-    /// with the provided message
-    send: fn(BitBuilder) -> Result(Nil, SocketReason),
   )
+}
+
+/// Sends a BitBuilder message over the socket using the active transport
+pub fn send(conn: Connection, msg: BitBuilder) -> Result(Nil, SocketReason) {
+  conn.transport.send(conn.socket, msg)
 }
 
 /// This is the shape of the function you need to provide for the `handler`
@@ -68,7 +70,7 @@ fn map_user_selector(
     selector,
     fn(value) {
       case value {
-        Receive(msg) -> handler.Receive(msg)
+        Packet(msg) -> handler.Packet(msg)
         User(msg) -> handler.Custom(msg)
       }
     },
@@ -79,11 +81,10 @@ fn convert_loop(
   loop: Loop(user_message, data),
 ) -> handler.Loop(user_message, data) {
   fn(msg, data, conn: handler.Connection(user_message)) {
-    let send = fn(msg) { conn.transport.send(conn.socket, msg) }
-    let conn = Connection(conn.client_ip, conn.socket, conn.transport, send)
+    let conn = Connection(conn.client_ip, conn.socket, conn.transport)
     case msg {
-      handler.Receive(msg) -> {
-        case loop(Receive(msg), data, conn) {
+      handler.Packet(msg) -> {
+        case loop(Packet(msg), data, conn) {
           actor.Continue(data, selector) ->
             actor.Continue(data, option.map(selector, map_user_selector))
           actor.Stop(reason) -> actor.Stop(reason)

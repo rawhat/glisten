@@ -7,7 +7,7 @@ import gleeunit
 import gleeunit/should
 import glisten/socket/options
 import glisten/tcp
-import glisten.{Receive}
+import glisten.{Packet}
 import tcp_client
 
 pub fn main() {
@@ -53,7 +53,7 @@ pub fn it_accepts_from_the_pool_test() {
     glisten.handler(
       fn() { #(Nil, None) },
       fn(msg, state, conn) {
-        let assert Receive(msg) = msg
+        let assert Packet(msg) = msg
         let assert Ok(_) =
           tcp.send(conn.socket, bit_builder.from_bit_string(msg))
         actor.continue(state)
