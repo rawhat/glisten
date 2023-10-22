@@ -97,7 +97,7 @@ pub type Pool(user_message, data) {
     handler: Loop(user_message, data),
     pool_count: Int,
     on_init: fn() -> #(data, Option(Selector(user_message))),
-    on_close: Option(fn() -> Nil),
+    on_close: Option(fn(data) -> Nil),
     transport: Transport,
   )
 }

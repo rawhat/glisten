@@ -33,6 +33,7 @@ pub type TcpOption {
   Certfile(String)
   Keyfile(String)
   AlpnPreferredProtocols(List(String))
+  Inet6
 }
 
 pub fn to_map(options: List(TcpOption)) -> Map(atom.Atom, Dynamic) {
@@ -80,4 +81,5 @@ pub fn merge_with_defaults(options: List(TcpOption)) -> List(TcpOption) {
   |> map.to_list
   |> list.map(dynamic.from)
   |> list.map(dynamic.unsafe_coerce)
+  |> list.append([Inet6])
 }

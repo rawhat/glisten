@@ -62,7 +62,7 @@ pub opaque type Handler(user_message, data) {
   Handler(
     on_init: fn() -> #(data, Option(Selector(user_message))),
     loop: Loop(user_message, data),
-    on_close: Option(fn() -> Nil),
+    on_close: Option(fn(data) -> Nil),
     pool_size: Int,
   )
 }
@@ -119,7 +119,7 @@ pub fn handler(
 /// Adds a function to the handler to be called when the connection is closed.
 pub fn with_close(
   handler: Handler(user_message, data),
-  on_close: fn() -> Nil,
+  on_close: fn(data) -> Nil,
 ) -> Handler(user_message, data) {
   Handler(..handler, on_close: Some(on_close))
 }

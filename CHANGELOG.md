@@ -1,3 +1,8 @@
+# Unreleased
+
+- Pass state value to `on_close` handler
+- Add support for IPv6 to socket options
+
 # v0.9.0
 
 - Refactor API to mirror `mist` structure

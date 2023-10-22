@@ -64,7 +64,7 @@ pub type Handler(user_message, data) {
     socket: Socket,
     loop: Loop(user_message, data),
     on_init: fn() -> #(data, Option(Selector(user_message))),
-    on_close: Option(fn() -> Nil),
+    on_close: Option(fn(data) -> Nil),
     transport: Transport,
   )
 }
@@ -143,7 +143,7 @@ pub fn start(
           case state.transport.close(state.socket) {
             Ok(Nil) -> {
               let _ = case handler.on_close {
-                Some(on_close) -> on_close()
+                Some(on_close) -> on_close(state.data)
                 _ -> Nil
               }
               actor.Stop(process.Normal)

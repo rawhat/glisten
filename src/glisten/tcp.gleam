@@ -67,9 +67,9 @@ pub fn set_opts(socket: Socket, opts: List(TcpOption)) -> Result(Nil, Nil) {
 /// Start listening over TCP on a port with the given options
 pub fn listen(
   port: Int,
-  options: List(TcpOption),
+  opts: List(TcpOption),
 ) -> Result(ListenSocket, SocketReason) {
-  options
+  opts
   |> options.merge_with_defaults
   |> do_listen_tcp(port, _)
 }
