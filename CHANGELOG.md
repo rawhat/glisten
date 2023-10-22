@@ -1,4 +1,4 @@
-# Unreleased
+# v0.9.1
 
 - Pass state value to `on_close` handler
 - Add support for IPv6 to socket options
