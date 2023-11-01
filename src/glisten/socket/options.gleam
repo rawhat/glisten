@@ -1,7 +1,7 @@
-import gleam/dynamic.{Dynamic}
+import gleam/dynamic.{type Dynamic}
 import gleam/erlang/atom
 import gleam/list
-import gleam/map.{Map}
+import gleam/map.{type Map}
 import gleam/pair
 
 /// Mode for the socket.  Currently `list` is not supported

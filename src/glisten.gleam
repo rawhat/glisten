@@ -1,12 +1,12 @@
-import gleam/bit_builder.{BitBuilder}
-import gleam/dynamic.{Dynamic}
-import gleam/erlang/process.{Selector, Subject}
-import gleam/option.{None, Option, Some}
+import gleam/bit_builder.{type BitBuilder}
+import gleam/dynamic.{type Dynamic}
+import gleam/erlang/process.{type Selector, type Subject}
+import gleam/option.{type Option, None, Some}
 import gleam/result
 import glisten/acceptor.{Pool}
-import glisten/handler.{ClientIp}
-import glisten/socket.{Closed, Socket, SocketReason, Timeout}
-import glisten/socket/transport.{Transport}
+import glisten/handler.{type ClientIp}
+import glisten/socket.{type Socket, type SocketReason, Closed, Timeout}
+import glisten/socket/transport.{type Transport}
 import glisten/tcp
 import glisten/ssl
 import gleam/otp/actor
@@ -26,7 +26,7 @@ pub type StartError {
 /// first argument.
 pub type Message(user_message) {
   /// These are messages received from the socket
-  Packet(BitString)
+  Packet(BitArray)
   /// These are any messages received from the selector returned from `on_init`
   User(user_message)
 }

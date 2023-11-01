@@ -3,6 +3,7 @@ version = "0.9.1"
 description = "a shiny Gleam TCP/SSL server"
 licences = ["Apache-2.0"]
 repository = { type = "github", user = "rawhat", repo = "glisten" }
+gleam = ">= 0.32.0"
 
 [dependencies]
 gleam_stdlib = "~> 0.30"

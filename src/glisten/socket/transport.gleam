@@ -1,10 +1,10 @@
-import gleam/bit_builder.{BitBuilder}
-import gleam/dynamic.{Dynamic}
-import gleam/erlang/atom.{Atom}
-import gleam/erlang/process.{Pid}
-import gleam/map.{Map}
+import gleam/bit_builder.{type BitBuilder}
+import gleam/dynamic.{type Dynamic}
+import gleam/erlang/atom.{type Atom}
+import gleam/erlang/process.{type Pid}
+import gleam/map.{type Map}
 import glisten/socket/options
-import glisten/socket.{ListenSocket, Socket, SocketReason}
+import glisten/socket.{type ListenSocket, type Socket, type SocketReason}
 import glisten/ssl
 import glisten/tcp
 
@@ -21,10 +21,10 @@ type Accept =
   fn(ListenSocket) -> Result(Socket, SocketReason)
 
 type ReceiveTimeout =
-  fn(Socket, Int, Int) -> Result(BitString, SocketReason)
+  fn(Socket, Int, Int) -> Result(BitArray, SocketReason)
 
 type Receive =
-  fn(Socket, Int) -> Result(BitString, SocketReason)
+  fn(Socket, Int) -> Result(BitArray, SocketReason)
 
 type Send =
   fn(Socket, BitBuilder) -> Result(Nil, SocketReason)

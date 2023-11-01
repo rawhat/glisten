@@ -16,7 +16,7 @@ pub fn main() {
 
 type Msg {
   Connected
-  Response(BitString)
+  Response(BitArray)
 }
 
 pub fn it_echoes_messages_test() {

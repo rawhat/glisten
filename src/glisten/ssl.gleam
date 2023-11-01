@@ -1,10 +1,10 @@
-import gleam/bit_builder.{BitBuilder}
-import gleam/dynamic.{Dynamic}
-import gleam/erlang/atom.{Atom}
-import gleam/erlang/process.{Pid}
+import gleam/bit_builder.{type BitBuilder}
+import gleam/dynamic.{type Dynamic}
+import gleam/erlang/atom.{type Atom}
+import gleam/erlang/process.{type Pid}
 import gleam/list
 import gleam/map
-import glisten/socket.{ListenSocket, Socket, SocketReason}
+import glisten/socket.{type ListenSocket, type Socket, type SocketReason}
 import glisten/socket/options
 
 @external(erlang, "ssl_ffi", "controlling_process")
@@ -30,10 +30,10 @@ pub fn receive_timeout(
   socket: Socket,
   length: Int,
   timeout: Int,
-) -> Result(BitString, SocketReason)
+) -> Result(BitArray, SocketReason)
 
 @external(erlang, "ssl", "recv")
-pub fn receive(socket: Socket, length: Int) -> Result(BitString, SocketReason)
+pub fn receive(socket: Socket, length: Int) -> Result(BitArray, SocketReason)
 
 @external(erlang, "ssl_ffi", "send")
 pub fn send(socket: Socket, packet: BitBuilder) -> Result(Nil, SocketReason)

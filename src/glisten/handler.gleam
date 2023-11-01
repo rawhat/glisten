@@ -1,14 +1,14 @@
 import gleam/dynamic
 import gleam/erlang/atom
-import gleam/erlang/process.{Selector, Subject}
+import gleam/erlang/process.{type Selector, type Subject}
 import gleam/function
-import gleam/option.{Option, Some}
+import gleam/option.{type Option, Some}
 import gleam/otp/actor
-import gleam/otp/port.{Port}
+import gleam/otp/port.{type Port}
 import gleam/result
 import gleam/string
-import glisten/socket.{Socket}
-import glisten/socket/transport.{Transport}
+import glisten/socket.{type Socket}
+import glisten/socket/transport.{type Transport}
 import glisten/socket/options
 
 /// All message types that the handler will receive, or that you can
@@ -16,10 +16,10 @@ import glisten/socket/options
 pub type InternalMessage {
   Close
   Ready
-  ReceiveMessage(BitString)
-  Ssl(socket: Port, data: BitString)
+  ReceiveMessage(BitArray)
+  Ssl(socket: Port, data: BitArray)
   SslClosed
-  Tcp(socket: Port, data: BitString)
+  Tcp(socket: Port, data: BitArray)
   TcpClosed
 }
 
@@ -29,7 +29,7 @@ pub type Message(user_message) {
 }
 
 pub type LoopMessage(user_message) {
-  Packet(BitString)
+  Packet(BitArray)
   Custom(user_message)
 }
 

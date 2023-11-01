@@ -1,14 +1,14 @@
-import gleam/erlang/process.{Abnormal, Selector, Subject}
+import gleam/erlang/process.{type Selector, type Subject, Abnormal}
 import gleam/function
 import gleam/iterator
-import gleam/option.{None, Option}
+import gleam/option.{type Option, None}
 import gleam/otp/actor
 import gleam/otp/supervisor
 import gleam/result
-import glisten/handler.{Handler, Internal, Loop, Ready}
+import glisten/handler.{type Loop, Handler, Internal, Ready}
 import glisten/logger
-import glisten/socket.{ListenSocket, Socket}
-import glisten/socket/transport.{Transport}
+import glisten/socket.{type ListenSocket, type Socket}
+import glisten/socket/transport.{type Transport}
 
 pub type AcceptorMessage {
   AcceptConnection(ListenSocket)
