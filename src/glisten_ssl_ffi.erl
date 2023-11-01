@@ -1,4 +1,4 @@
--module(ssl_ffi).
+-module(glisten_ssl_ffi).
 
 -export([controlling_process/2, send/2, set_opts/2, start_ssl/0, shutdown/2, close/1,
          negotiated_protocol/1]).

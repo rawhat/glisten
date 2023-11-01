@@ -7,7 +7,7 @@ import gleam/map.{type Map}
 import glisten/socket.{type ListenSocket, type Socket, type SocketReason}
 import glisten/socket/options.{type TcpOption}
 
-@external(erlang, "tcp_ffi", "controlling_process")
+@external(erlang, "glisten_tcp_ffi", "controlling_process")
 pub fn controlling_process(socket: Socket, pid: Pid) -> Result(Nil, Atom)
 
 @external(erlang, "gen_tcp", "listen")
@@ -35,16 +35,16 @@ pub fn receive_timeout(
 @external(erlang, "gen_tcp", "recv")
 pub fn receive(socket: Socket, length: Int) -> Result(BitArray, SocketReason)
 
-@external(erlang, "tcp_ffi", "send")
+@external(erlang, "glisten_tcp_ffi", "send")
 pub fn send(socket: Socket, packet: BitBuilder) -> Result(Nil, SocketReason)
 
 @external(erlang, "socket", "info")
 pub fn socket_info(socket: Socket) -> Map(a, b)
 
-@external(erlang, "tcp_ffi", "close")
+@external(erlang, "glisten_tcp_ffi", "close")
 pub fn close(socket: a) -> Result(Nil, SocketReason)
 
-@external(erlang, "tcp_ffi", "shutdown")
+@external(erlang, "glisten_tcp_ffi", "shutdown")
 pub fn do_shutdown(socket: Socket, write: Atom) -> Result(Nil, SocketReason)
 
 pub fn shutdown(socket: Socket) -> Result(Nil, SocketReason) {
@@ -52,7 +52,7 @@ pub fn shutdown(socket: Socket) -> Result(Nil, SocketReason) {
   do_shutdown(socket, write)
 }
 
-@external(erlang, "tcp_ffi", "set_opts")
+@external(erlang, "glisten_tcp_ffi", "set_opts")
 fn do_set_opts(socket: Socket, opts: List(Dynamic)) -> Result(Nil, Nil)
 
 /// Update the optons for a socket (mutates the socket)
