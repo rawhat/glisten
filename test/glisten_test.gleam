@@ -1,4 +1,4 @@
-import gleam/bit_builder
+import gleam/bytes_builder
 import gleam/dynamic
 import gleam/erlang/process
 import gleam/option.{None}
@@ -41,7 +41,7 @@ pub fn it_echoes_messages_test() {
 
   let client = tcp_client.connect()
   let assert Ok(_) =
-    tcp.send(client, bit_builder.from_bit_string(<<"hi mom":utf8>>))
+    tcp.send(client, bytes_builder.from_bit_array(<<"hi mom":utf8>>))
   let assert Ok(Response(resp)) = process.receive(client_subject, 200)
 
   should.equal(resp, <<"hi mom":utf8>>)
@@ -55,7 +55,7 @@ pub fn it_accepts_from_the_pool_test() {
       fn(msg, state, conn) {
         let assert Packet(msg) = msg
         let assert Ok(_) =
-          tcp.send(conn.socket, bit_builder.from_bit_string(msg))
+          tcp.send(conn.socket, bytes_builder.from_bit_array(msg))
         actor.continue(state)
       },
     )
@@ -72,7 +72,7 @@ pub fn it_accepts_from_the_pool_test() {
           )
         let client = tcp_client.connect()
         let assert Ok(_) =
-          tcp.send(client, bit_builder.from_bit_string(<<"hi mom":utf8>>))
+          tcp.send(client, bytes_builder.from_bit_array(<<"hi mom":utf8>>))
         let assert Ok(#(_tcp, _port, msg)) =
           process.select(client_selector, 200)
         process.send(client_sender, msg)

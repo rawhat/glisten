@@ -85,7 +85,7 @@ pub fn start(
           atom.create_from_string("tcp"),
           fn(_sock, data) {
             data
-            |> dynamic.bit_string
+            |> dynamic.bit_array
             |> result.unwrap(<<>>)
             |> ReceiveMessage
           },
@@ -94,7 +94,7 @@ pub fn start(
           atom.create_from_string("ssl"),
           fn(_sock, data) {
             data
-            |> dynamic.bit_string
+            |> dynamic.bit_array
             |> result.unwrap(<<>>)
             |> ReceiveMessage
           },
