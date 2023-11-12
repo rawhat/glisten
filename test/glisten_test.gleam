@@ -39,7 +39,7 @@ pub fn it_echoes_messages_test() {
 
   let assert Ok(Connected) = process.receive(client_subject, 200)
 
-  let client = tcp_client.connect()
+  let client = tcp_client.connect(9999)
   let assert Ok(_) =
     tcp.send(client, bytes_builder.from_bit_array(<<"hi mom":utf8>>))
   let assert Ok(Response(resp)) = process.receive(client_subject, 200)
@@ -60,7 +60,7 @@ pub fn it_accepts_from_the_pool_test() {
       },
     )
     |> glisten.with_pool_size(1)
-    |> glisten.serve(9999)
+    |> glisten.serve(9998)
 
   let _client_process =
     process.start(
@@ -70,7 +70,7 @@ pub fn it_accepts_from_the_pool_test() {
             process.new_selector(),
             dynamic.unsafe_coerce,
           )
-        let client = tcp_client.connect()
+        let client = tcp_client.connect(9998)
         let assert Ok(_) =
           tcp.send(client, bytes_builder.from_bit_array(<<"hi mom":utf8>>))
         let assert Ok(#(_tcp, _port, msg)) =

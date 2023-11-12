@@ -10,11 +10,11 @@ fn tcp_connect(
   options: List(Dynamic),
 ) -> Result(Socket, Nil)
 
-pub fn connect() -> Socket {
+pub fn connect(port: Int) -> Socket {
   let assert Ok(client) =
     tcp_connect(
       charlist.from_string("localhost"),
-      9999,
+      port,
       [dynamic.from(atom.create_from_string("binary"))],
     )
   client
