@@ -70,15 +70,12 @@ pub opaque type Handler(user_message, data) {
 fn map_user_selector(
   selector: Selector(Message(user_message)),
 ) -> Selector(handler.LoopMessage(user_message)) {
-  process.map_selector(
-    selector,
-    fn(value) {
-      case value {
-        Packet(msg) -> handler.Packet(msg)
-        User(msg) -> handler.Custom(msg)
-      }
-    },
-  )
+  process.map_selector(selector, fn(value) {
+    case value {
+      Packet(msg) -> handler.Packet(msg)
+      User(msg) -> handler.Custom(msg)
+    }
+  })
 }
 
 fn convert_loop(
