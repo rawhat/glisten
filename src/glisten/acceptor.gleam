@@ -82,10 +82,6 @@ pub fn start(
             }
           }
         }
-        msg -> {
-          logger.error(#("Unknown message type", msg))
-          actor.Stop(process.Abnormal("Unknown message type"))
-        }
       }
     },
   ))
@@ -115,12 +111,9 @@ pub fn start_pool(
     frequency_period: 1,
     init: fn(children) {
       iterator.range(from: 0, to: pool.pool_count)
-      |> iterator.fold(
-        children,
-        fn(children, _index) {
-          supervisor.add(children, supervisor.worker(fn(_arg) { start(pool) }))
-        },
-      )
+      |> iterator.fold(children, fn(children, _index) {
+        supervisor.add(children, supervisor.worker(fn(_arg) { start(pool) }))
+      })
     },
   ))
 }
