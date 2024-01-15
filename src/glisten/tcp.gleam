@@ -3,7 +3,7 @@ import gleam/dynamic.{type Dynamic}
 import gleam/erlang/atom.{type Atom}
 import gleam/erlang/process.{type Pid}
 import gleam/list
-import gleam/map.{type Map}
+import gleam/dict.{type Dict}
 import glisten/socket.{type ListenSocket, type Socket, type SocketReason}
 import glisten/socket/options.{type TcpOption}
 
@@ -39,7 +39,7 @@ pub fn receive(socket: Socket, length: Int) -> Result(BitArray, SocketReason)
 pub fn send(socket: Socket, packet: BitBuilder) -> Result(Nil, SocketReason)
 
 @external(erlang, "socket", "info")
-pub fn socket_info(socket: Socket) -> Map(a, b)
+pub fn socket_info(socket: Socket) -> Dict(a, b)
 
 @external(erlang, "glisten_tcp_ffi", "close")
 pub fn close(socket: a) -> Result(Nil, SocketReason)
@@ -58,8 +58,8 @@ fn do_set_opts(socket: Socket, opts: List(Dynamic)) -> Result(Nil, Nil)
 /// Update the optons for a socket (mutates the socket)
 pub fn set_opts(socket: Socket, opts: List(TcpOption)) -> Result(Nil, Nil) {
   opts
-  |> options.to_map
-  |> map.to_list
+  |> options.to_dict
+  |> dict.to_list
   |> list.map(dynamic.from)
   |> do_set_opts(socket, _)
 }

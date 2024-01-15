@@ -2,7 +2,7 @@ import gleam/bit_builder.{type BitBuilder}
 import gleam/dynamic.{type Dynamic}
 import gleam/erlang/atom.{type Atom}
 import gleam/erlang/process.{type Pid}
-import gleam/map.{type Map}
+import gleam/dict.{type Dict}
 import glisten/socket/options
 import glisten/socket.{type ListenSocket, type Socket, type SocketReason}
 import glisten/ssl
@@ -30,7 +30,7 @@ type Send =
   fn(Socket, BitBuilder) -> Result(Nil, SocketReason)
 
 type SocketInfo =
-  fn(Socket) -> Map(Atom, Dynamic)
+  fn(Socket) -> Dict(Atom, Dynamic)
 
 type Close =
   fn(Socket) -> Result(Nil, SocketReason)
@@ -126,4 +126,4 @@ pub fn ssl() -> Transport {
 }
 
 @external(erlang, "socket", "info")
-pub fn socket_info(socket: Socket) -> Map(a, b)
+pub fn socket_info(socket: Socket) -> Dict(a, b)
