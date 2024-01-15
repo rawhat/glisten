@@ -1,7 +1,7 @@
 import gleam/dynamic.{type Dynamic}
 import gleam/erlang/atom
 import gleam/list
-import gleam/map.{type Map}
+import gleam/dict.{type Dict}
 import gleam/pair
 
 /// Mode for the socket.  Currently `list` is not supported
@@ -36,7 +36,7 @@ pub type TcpOption {
   Inet6
 }
 
-pub fn to_map(options: List(TcpOption)) -> Map(atom.Atom, Dynamic) {
+pub fn to_dict(options: List(TcpOption)) -> Dict(atom.Atom, Dynamic) {
   let opt_decoder = dynamic.tuple2(dynamic.dynamic, dynamic.dynamic)
 
   options
@@ -58,7 +58,7 @@ pub fn to_map(options: List(TcpOption)) -> Map(atom.Atom, Dynamic) {
   })
   |> list.filter_map(opt_decoder)
   |> list.map(pair.map_first(_, dynamic.unsafe_coerce))
-  |> map.from_list
+  |> dict.from_list
 }
 
 const default_options = [
@@ -73,12 +73,12 @@ const default_options = [
 ]
 
 pub fn merge_with_defaults(options: List(TcpOption)) -> List(TcpOption) {
-  let overrides = to_map(options)
+  let overrides = to_dict(options)
 
   default_options
-  |> to_map
-  |> map.merge(overrides)
-  |> map.to_list
+  |> to_dict
+  |> dict.merge(overrides)
+  |> dict.to_list
   |> list.map(dynamic.from)
   |> list.map(dynamic.unsafe_coerce)
   |> list.append([Inet6])

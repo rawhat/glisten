@@ -3,7 +3,7 @@ import gleam/dynamic.{type Dynamic}
 import gleam/erlang/atom.{type Atom}
 import gleam/erlang/process.{type Pid}
 import gleam/list
-import gleam/map
+import gleam/dict
 import glisten/socket.{type ListenSocket, type Socket, type SocketReason}
 import glisten/socket/options
 
@@ -58,8 +58,8 @@ pub fn set_opts(
   opts: List(options.TcpOption),
 ) -> Result(Nil, Nil) {
   opts
-  |> options.to_map
-  |> map.to_list
+  |> options.to_dict
+  |> dict.to_list
   |> list.map(dynamic.from)
   |> do_set_opts(socket, _)
 }
