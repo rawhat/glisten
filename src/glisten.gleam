@@ -10,6 +10,7 @@ import glisten/socket/transport.{type Transport}
 import glisten/tcp
 import glisten/ssl
 import gleam/otp/actor
+import gleam/otp/supervisor
 import glisten/socket/options.{Certfile, Keyfile}
 
 /// Reasons that `serve` might fail
@@ -133,7 +134,7 @@ pub fn with_pool_size(
 pub fn serve(
   handler: Handler(user_message, data),
   port: Int,
-) -> Result(Nil, StartError) {
+) -> Result(Subject(supervisor.Message), StartError) {
   port
   |> tcp.listen([])
   |> result.map_error(fn(err) {
@@ -161,7 +162,6 @@ pub fn serve(
       }
     })
   })
-  |> result.replace(Nil)
 }
 
 /// Start the SSL server with the given handler on the provided port.  The key

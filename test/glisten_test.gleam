@@ -49,7 +49,7 @@ pub fn it_echoes_messages_test() {
 
 pub fn it_accepts_from_the_pool_test() {
   let client_sender = process.new_subject()
-  let assert Ok(Nil) =
+  let assert Ok(_subj) =
     glisten.handler(fn() { #(Nil, None) }, fn(msg, state, conn) {
       let assert Packet(msg) = msg
       let assert Ok(_) =
