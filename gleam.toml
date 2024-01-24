@@ -7,8 +7,8 @@ gleam = ">= 0.32.0"
 
 [dependencies]
 gleam_stdlib = "~> 0.34"
-gleam_otp = "~> 0.8"
-gleam_erlang = "~> 0.23"
+gleam_otp = "~> 0.9"
+gleam_erlang = "~> 0.24"
 
 [dev-dependencies]
 gleeunit = "~> 1.0"
