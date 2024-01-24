@@ -1,7 +1,8 @@
-# v0.10.0
+# v0.9.3
 
 - Updated for Gleam v0.33.0.
 - The `options.to_map` function has been renamed to `options.to_dict`.
+- Return `Subject` from pool supervisor
 
 # v0.9.1
 
