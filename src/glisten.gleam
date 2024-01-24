@@ -171,7 +171,7 @@ pub fn serve_ssl(
   port port: Int,
   certfile certfile: String,
   keyfile keyfile: String,
-) -> Result(Nil, StartError) {
+) -> Result(Subject(supervisor.Message), StartError) {
   let assert Ok(_nil) = ssl.start()
   port
   |> ssl.listen([Certfile(certfile), Keyfile(keyfile)])
@@ -200,5 +200,4 @@ pub fn serve_ssl(
       }
     })
   })
-  |> result.replace(Nil)
 }
