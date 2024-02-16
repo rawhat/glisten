@@ -1,4 +1,4 @@
-import gleam/bit_builder.{type BitBuilder}
+import gleam/bytes_builder.{type BytesBuilder}
 import gleam/dynamic.{type Dynamic}
 import gleam/erlang/process.{type Selector, type Subject}
 import gleam/option.{type Option, None, Some}
@@ -45,10 +45,10 @@ pub type Connection(user_message) {
   )
 }
 
-/// Sends a BitBuilder message over the socket using the active transport
+/// Sends a BytesBuilder message over the socket using the active transport
 pub fn send(
   conn: Connection(user_message),
-  msg: BitBuilder,
+  msg: BytesBuilder,
 ) -> Result(Nil, SocketReason) {
   conn.transport.send(conn.socket, msg)
 }

@@ -1,4 +1,4 @@
-import gleam/bit_builder.{type BitBuilder}
+import gleam/bytes_builder.{type BytesBuilder}
 import gleam/dynamic.{type Dynamic}
 import gleam/erlang/atom.{type Atom}
 import gleam/erlang/process.{type Pid}
@@ -27,7 +27,7 @@ type Receive =
   fn(Socket, Int) -> Result(BitArray, SocketReason)
 
 type Send =
-  fn(Socket, BitBuilder) -> Result(Nil, SocketReason)
+  fn(Socket, BytesBuilder) -> Result(Nil, SocketReason)
 
 type SocketInfo =
   fn(Socket) -> Dict(Atom, Dynamic)

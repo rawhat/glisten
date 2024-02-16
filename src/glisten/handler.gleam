@@ -77,34 +77,32 @@ pub fn start(
         let #(initial_state, user_selector) = handler.on_init()
         let selector =
           process.new_selector()
-          |> process.selecting_record3(atom.create_from_string("tcp"), fn(
-            _sock,
-            data,
-          ) {
-            data
-            |> dynamic.bit_array
-            |> result.unwrap(<<>>)
-            |> ReceiveMessage
-          })
-          |> process.selecting_record3(atom.create_from_string("ssl"), fn(
-            _sock,
-            data,
-          ) {
-            data
-            |> dynamic.bit_array
-            |> result.unwrap(<<>>)
-            |> ReceiveMessage
-          })
-          |> process.selecting_record2(atom.create_from_string("ssl_closed"), fn(
-            _nil,
-          ) {
-            SslClosed
-          })
-          |> process.selecting_record2(atom.create_from_string("tcp_closed"), fn(
-            _nil,
-          ) {
-            TcpClosed
-          })
+          |> process.selecting_record3(
+            atom.create_from_string("tcp"),
+            fn(_sock, data) {
+              data
+              |> dynamic.bit_array
+              |> result.unwrap(<<>>)
+              |> ReceiveMessage
+            },
+          )
+          |> process.selecting_record3(
+            atom.create_from_string("ssl"),
+            fn(_sock, data) {
+              data
+              |> dynamic.bit_array
+              |> result.unwrap(<<>>)
+              |> ReceiveMessage
+            },
+          )
+          |> process.selecting_record2(
+            atom.create_from_string("ssl_closed"),
+            fn(_nil) { SslClosed },
+          )
+          |> process.selecting_record2(
+            atom.create_from_string("tcp_closed"),
+            fn(_nil) { TcpClosed },
+          )
           |> process.map_selector(Internal)
           |> process.selecting(subject, function.identity)
         let selector = case user_selector {
