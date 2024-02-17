@@ -1,4 +1,4 @@
-# Unreleased
+# v0.11.0
 
 - Updated for Gleam ~v1.0 and `gleam_stdlib` >= 0.35
 
