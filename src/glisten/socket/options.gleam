@@ -64,7 +64,6 @@ pub fn to_dict(options: List(TcpOption)) -> Dict(atom.Atom, Dynamic) {
 const default_options = [
   Backlog(1024),
   Nodelay(True),
-  Linger(#(True, 30)),
   SendTimeout(30_000),
   SendTimeoutClose(True),
   Reuseaddr(True),
