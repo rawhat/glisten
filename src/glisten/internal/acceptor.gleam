@@ -5,10 +5,10 @@ import gleam/option.{type Option, None}
 import gleam/otp/actor
 import gleam/otp/supervisor
 import gleam/result
-import glisten/handler.{type Loop, Handler, Internal, Ready}
-import glisten/logger
-import glisten/socket.{type ListenSocket, type Socket}
-import glisten/socket/transport.{type Transport}
+import glisten/internal/handler.{type Loop, Handler, Internal, Ready}
+import glisten/internal/logger
+import glisten/internal/socket.{type ListenSocket, type Socket}
+import glisten/transport.{type Transport}
 
 pub type AcceptorMessage {
   AcceptConnection(ListenSocket)
@@ -52,7 +52,7 @@ pub fn start(
         AcceptConnection(listener) -> {
           let res = {
             use sock <- result.then(
-              state.transport.accept(listener)
+              transport.accept(state.transport, listener)
               |> result.replace_error(AcceptError),
             )
             use start <- result.then(
@@ -67,7 +67,11 @@ pub fn start(
               |> result.replace_error(HandlerError),
             )
             sock
-            |> state.transport.controlling_process(process.subject_owner(start))
+            |> transport.controlling_process(
+              state.transport,
+              _,
+              process.subject_owner(start),
+            )
             |> result.replace_error(ControlError)
             |> result.map(fn(_) { process.send(start, Internal(Ready)) })
           }

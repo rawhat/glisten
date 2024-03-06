@@ -5,8 +5,8 @@ import gleam/option.{None}
 import gleam/otp/actor
 import gleeunit
 import gleeunit/should
-import glisten/socket/options
-import glisten/tcp
+import glisten/socket_options
+import glisten/internal/tcp
 import glisten.{Packet}
 import tcp_client
 
@@ -26,7 +26,7 @@ pub fn it_echoes_messages_test() {
       fn() {
         let assert Nil = process.send(client_subject, Connected)
         let assert Ok(listener) =
-          tcp.listen(9999, [options.ActiveMode(options.Passive)])
+          tcp.listen(9999, [socket_options.ActiveMode(socket_options.Passive)])
         let assert Ok(socket) = tcp.accept(listener)
         let loop = fn() {
           let assert Ok(msg) = tcp.receive_timeout(socket, 0, 200)

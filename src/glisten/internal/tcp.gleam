@@ -4,8 +4,10 @@ import gleam/erlang/atom.{type Atom}
 import gleam/erlang/process.{type Pid}
 import gleam/list
 import gleam/dict.{type Dict}
-import glisten/socket.{type ListenSocket, type Socket, type SocketReason}
-import glisten/socket/options.{type TcpOption}
+import glisten/internal/socket.{
+  type ListenSocket, type Socket, type SocketReason,
+}
+import glisten/socket_options.{type TcpOption}
 
 @external(erlang, "glisten_tcp_ffi", "controlling_process")
 pub fn controlling_process(socket: Socket, pid: Pid) -> Result(Nil, Atom)
@@ -58,7 +60,7 @@ fn do_set_opts(socket: Socket, opts: List(Dynamic)) -> Result(Nil, Nil)
 /// Update the optons for a socket (mutates the socket)
 pub fn set_opts(socket: Socket, opts: List(TcpOption)) -> Result(Nil, Nil) {
   opts
-  |> options.to_dict
+  |> socket_options.to_dict
   |> dict.to_list
   |> list.map(dynamic.from)
   |> do_set_opts(socket, _)
@@ -70,7 +72,7 @@ pub fn listen(
   opts: List(TcpOption),
 ) -> Result(ListenSocket, SocketReason) {
   opts
-  |> options.merge_with_defaults
+  |> socket_options.merge_with_defaults
   |> do_listen_tcp(port, _)
 }
 

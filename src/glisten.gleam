@@ -3,15 +3,18 @@ import gleam/dynamic.{type Dynamic}
 import gleam/erlang/process.{type Selector, type Subject}
 import gleam/option.{type Option, None, Some}
 import gleam/result
-import glisten/acceptor.{Pool}
-import glisten/handler.{type ClientIp}
-import glisten/socket.{type Socket, type SocketReason, Closed, Timeout}
-import glisten/socket/transport.{type Transport}
-import glisten/tcp
-import glisten/ssl
+import glisten/internal/acceptor.{Pool}
+import glisten/internal/handler.{type ClientIp as InternalClientIp}
+import glisten/internal/socket.{
+  type Socket as InternalSocket, type SocketReason as InternalSocketReason,
+  Closed, Timeout,
+}
+import glisten/socket_options.{Certfile, Keyfile}
+import glisten/transport.{type Transport}
+import glisten/internal/tcp
+import glisten/internal/ssl
 import gleam/otp/actor
 import gleam/otp/supervisor
-import glisten/socket/options.{Certfile, Keyfile}
 
 /// Reasons that `serve` might fail
 pub type StartError {
@@ -32,6 +35,15 @@ pub type Message(user_message) {
   User(user_message)
 }
 
+pub type ClientIp =
+  InternalClientIp
+
+pub type Socket =
+  InternalSocket
+
+pub type SocketReason =
+  InternalSocketReason
+
 /// This type holds useful bits of data for the active connection.
 pub type Connection(user_message) {
   Connection(
@@ -50,7 +62,7 @@ pub fn send(
   conn: Connection(user_message),
   msg: BytesBuilder,
 ) -> Result(Nil, SocketReason) {
-  conn.transport.send(conn.socket, msg)
+  transport.send(conn.transport, conn.socket, msg)
 }
 
 /// This is the shape of the function you need to provide for the `handler`
@@ -151,7 +163,7 @@ pub fn serve(
       handler.pool_size,
       handler.on_init,
       handler.on_close,
-      transport.tcp(),
+      transport.Tcp,
     )
     |> acceptor.start_pool
     |> result.map_error(fn(err) {
@@ -189,7 +201,7 @@ pub fn serve_ssl(
       handler.pool_size,
       handler.on_init,
       handler.on_close,
-      transport.ssl(),
+      transport.Ssl,
     )
     |> acceptor.start_pool
     |> result.map_error(fn(err) {

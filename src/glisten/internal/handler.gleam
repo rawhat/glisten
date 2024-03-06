@@ -6,9 +6,9 @@ import gleam/option.{type Option, Some}
 import gleam/otp/actor
 import gleam/result
 import gleam/string
-import glisten/socket.{type Socket}
-import glisten/socket/transport.{type Transport}
-import glisten/socket/options
+import glisten/internal/socket.{type Socket}
+import glisten/transport.{type Transport}
+import glisten/socket_options
 
 /// All message types that the handler will receive, or that you can
 /// send to the handler process
@@ -114,7 +114,7 @@ pub fn start(
         }
         actor.Ready(
           LoopState(
-            client_ip: handler.transport.peername(handler.socket),
+            client_ip: transport.peername(handler.transport, handler.socket),
             socket: handler.socket,
             sender: subject,
             transport: handler.transport,
@@ -134,7 +134,7 @@ pub fn start(
           )
         case msg {
           Internal(TcpClosed) | Internal(SslClosed) | Internal(Close) ->
-            case state.transport.close(state.socket) {
+            case transport.close(state.transport, state.socket) {
               Ok(Nil) -> {
                 let _ = case handler.on_close {
                   Some(on_close) -> on_close(state.data)
@@ -146,11 +146,11 @@ pub fn start(
             }
           Internal(Ready) ->
             state.socket
-            |> state.transport.handshake
+            |> transport.handshake(state.transport, _)
             |> result.replace_error("Failed to handshake socket")
             |> result.then(fn(_ok) {
-              state.transport.set_opts(state.socket, [
-                options.ActiveMode(options.Once),
+              transport.set_opts(state.transport, state.socket, [
+                socket_options.ActiveMode(socket_options.Once),
               ])
               |> result.replace_error("Failed to set socket active")
             })
@@ -164,8 +164,8 @@ pub fn start(
             case handler.loop(msg, state.data, connection) {
               actor.Continue(next_state, _selector) -> {
                 let assert Ok(Nil) =
-                  state.transport.set_opts(state.socket, [
-                    options.ActiveMode(options.Once),
+                  transport.set_opts(state.transport, state.socket, [
+                    socket_options.ActiveMode(socket_options.Once),
                   ])
                 actor.continue(LoopState(..state, data: next_state))
               }
@@ -177,8 +177,8 @@ pub fn start(
             case handler.loop(msg, state.data, connection) {
               actor.Continue(next_state, _selector) -> {
                 let assert Ok(Nil) =
-                  state.transport.set_opts(state.socket, [
-                    options.ActiveMode(options.Once),
+                  transport.set_opts(state.transport, state.socket, [
+                    socket_options.ActiveMode(socket_options.Once),
                   ])
                 actor.continue(LoopState(..state, data: next_state))
               }

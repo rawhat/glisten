@@ -14,8 +14,6 @@ pub type ActiveState {
   Once
   Passive
   Count(Int)
-  // This is dumb and annoying. I'd much prefer `True` or `Active`, but both
-  // of those make this a lot more annoying to work with
   Active
 }
 
