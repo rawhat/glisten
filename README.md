@@ -64,7 +64,7 @@ to manage connections yourself, or only handle a small number at a time.
 ```gleam
 import gleam/io
 import gleam/result
-import glisten/socket_options.{ActiveMode, Passive}
+import glisten/socket/options.{ActiveMode, Passive}
 import glisten/tcp
 
 pub fn main() {
