@@ -59,7 +59,7 @@ pub fn to_dict(options: List(TcpOption)) -> Dict(atom.Atom, Dynamic) {
   |> dict.from_list
 }
 
-const default_options = [
+pub const default_options = [
   Backlog(1024),
   Nodelay(True),
   SendTimeout(30_000),

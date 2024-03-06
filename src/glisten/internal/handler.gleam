@@ -6,7 +6,7 @@ import gleam/option.{type Option, Some}
 import gleam/otp/actor
 import gleam/result
 import gleam/string
-import glisten/internal/socket.{type Socket}
+import glisten/socket.{type Socket}
 import glisten/transport.{type Transport}
 import glisten/socket_options
 

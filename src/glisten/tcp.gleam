@@ -4,9 +4,7 @@ import gleam/erlang/atom.{type Atom}
 import gleam/erlang/process.{type Pid}
 import gleam/list
 import gleam/dict.{type Dict}
-import glisten/internal/socket.{
-  type ListenSocket, type Socket, type SocketReason,
-}
+import glisten/socket.{type ListenSocket, type Socket, type SocketReason}
 import glisten/socket_options.{type TcpOption}
 
 @external(erlang, "glisten_tcp_ffi", "controlling_process")

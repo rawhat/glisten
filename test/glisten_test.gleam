@@ -6,7 +6,7 @@ import gleam/otp/actor
 import gleeunit
 import gleeunit/should
 import glisten/socket_options
-import glisten/internal/tcp
+import glisten/tcp
 import glisten.{Packet}
 import tcp_client
 

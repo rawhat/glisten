@@ -4,9 +4,7 @@ import gleam/erlang/atom.{type Atom}
 import gleam/erlang/process.{type Pid}
 import gleam/list
 import gleam/dict
-import glisten/internal/socket.{
-  type ListenSocket, type Socket, type SocketReason,
-}
+import glisten/socket.{type ListenSocket, type Socket, type SocketReason}
 import glisten/socket_options
 
 @external(erlang, "glisten_ssl_ffi", "controlling_process")

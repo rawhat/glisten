@@ -7,7 +7,7 @@ import gleam/otp/supervisor
 import gleam/result
 import glisten/internal/handler.{type Loop, Handler, Internal, Ready}
 import glisten/internal/logger
-import glisten/internal/socket.{type ListenSocket, type Socket}
+import glisten/socket.{type ListenSocket, type Socket}
 import glisten/transport.{type Transport}
 
 pub type AcceptorMessage {

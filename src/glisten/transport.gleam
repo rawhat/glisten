@@ -4,11 +4,9 @@ import gleam/erlang/atom.{type Atom}
 import gleam/erlang/process.{type Pid}
 import gleam/dict.{type Dict}
 import glisten/socket_options
-import glisten/internal/socket.{
-  type ListenSocket, type Socket, type SocketReason,
-}
-import glisten/internal/ssl
-import glisten/internal/tcp
+import glisten/socket.{type ListenSocket, type Socket, type SocketReason}
+import glisten/ssl
+import glisten/tcp
 
 pub type Transport {
   Tcp

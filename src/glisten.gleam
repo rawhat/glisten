@@ -5,14 +5,14 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import glisten/internal/acceptor.{Pool}
 import glisten/internal/handler.{type ClientIp as InternalClientIp}
-import glisten/internal/socket.{
+import glisten/socket.{
   type Socket as InternalSocket, type SocketReason as InternalSocketReason,
   Closed, Timeout,
 }
 import glisten/socket_options.{Certfile, Keyfile}
 import glisten/transport.{type Transport}
-import glisten/internal/tcp
-import glisten/internal/ssl
+import glisten/tcp
+import glisten/ssl
 import gleam/otp/actor
 import gleam/otp/supervisor
 
