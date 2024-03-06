@@ -1,4 +1,4 @@
-# Unreleased
+# v1.0.0
 
 - Remove default `linger` option on sockets
 - Move a bunch of stuff into `internal`
