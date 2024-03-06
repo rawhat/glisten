@@ -3,7 +3,7 @@ import gleam/dynamic.{type Dynamic}
 import gleam/erlang/atom.{type Atom}
 import gleam/erlang/process.{type Pid}
 import gleam/dict.{type Dict}
-import glisten/socket_options
+import glisten/socket/options
 import glisten/socket.{type ListenSocket, type Socket, type SocketReason}
 import glisten/ssl
 import glisten/tcp
@@ -27,7 +27,7 @@ pub fn controlling_process(
 pub fn listen(
   transport: Transport,
   port: Int,
-  opts: List(socket_options.TcpOption),
+  opts: List(options.TcpOption),
 ) -> Result(ListenSocket, SocketReason) {
   case transport {
     Tcp -> tcp.listen(port, opts)
@@ -117,7 +117,7 @@ pub fn shutdown(
 pub fn set_opts(
   transport: Transport,
   socket: Socket,
-  opts: List(socket_options.TcpOption),
+  opts: List(options.TcpOption),
 ) -> Result(Nil, Nil) {
   case transport {
     Tcp -> tcp.set_opts(socket, opts)

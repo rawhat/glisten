@@ -7,8 +7,8 @@ import gleam/otp/actor
 import gleam/result
 import gleam/string
 import glisten/socket.{type Socket}
+import glisten/socket/options
 import glisten/transport.{type Transport}
-import glisten/socket_options
 
 /// All message types that the handler will receive, or that you can
 /// send to the handler process
@@ -150,7 +150,7 @@ pub fn start(
             |> result.replace_error("Failed to handshake socket")
             |> result.then(fn(_ok) {
               transport.set_opts(state.transport, state.socket, [
-                socket_options.ActiveMode(socket_options.Once),
+                options.ActiveMode(options.Once),
               ])
               |> result.replace_error("Failed to set socket active")
             })
@@ -165,7 +165,7 @@ pub fn start(
               actor.Continue(next_state, _selector) -> {
                 let assert Ok(Nil) =
                   transport.set_opts(state.transport, state.socket, [
-                    socket_options.ActiveMode(socket_options.Once),
+                    options.ActiveMode(options.Once),
                   ])
                 actor.continue(LoopState(..state, data: next_state))
               }
@@ -178,7 +178,7 @@ pub fn start(
               actor.Continue(next_state, _selector) -> {
                 let assert Ok(Nil) =
                   transport.set_opts(state.transport, state.socket, [
-                    socket_options.ActiveMode(socket_options.Once),
+                    options.ActiveMode(options.Once),
                   ])
                 actor.continue(LoopState(..state, data: next_state))
               }
