@@ -1,6 +1,8 @@
 # Unreleased
 
 - Remove default `linger` option on sockets
+- Move a bunch of stuff into `internal`
+- Refactor the `transport` module (and associated types)
 
 # v0.11.0
 
