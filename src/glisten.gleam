@@ -73,7 +73,8 @@ pub type Loop(user_message, data) =
 
 pub opaque type Handler(user_message, data) {
   Handler(
-    on_init: fn() -> #(data, Option(Selector(user_message))),
+    on_init: fn(Connection(user_message)) ->
+      #(data, Option(Selector(user_message))),
     loop: Loop(user_message, data),
     on_close: Option(fn(data) -> Nil),
     pool_size: Int,
@@ -116,11 +117,29 @@ fn convert_loop(
   }
 }
 
+fn convert_on_init(
+  on_init: fn(Connection(user_message)) ->
+    #(state, Option(Selector(user_message))),
+) -> fn(handler.Connection(user_message)) ->
+  #(state, Option(Selector(user_message))) {
+  fn(conn: handler.Connection(user_message)) {
+    let connection =
+      Connection(
+        client_ip: conn.client_ip,
+        subject: conn.sender,
+        socket: conn.socket,
+        transport: conn.transport,
+      )
+    on_init(connection)
+  }
+}
+
 /// Create a new handler for each connection.  The required arguments mirror the
 /// `actor.start` API from `gleam_otp`.  The default pool is 10 accceptor
 /// processes.
 pub fn handler(
-  on_init: fn() -> #(data, Option(Selector(user_message))),
+  on_init: fn(Connection(user_message)) ->
+    #(data, Option(Selector(user_message))),
   loop: Loop(user_message, data),
 ) -> Handler(user_message, data) {
   Handler(on_init: on_init, loop: loop, on_close: None, pool_size: 10)
@@ -158,12 +177,12 @@ pub fn serve(
   })
   |> result.then(fn(socket) {
     Pool(
-      socket,
-      convert_loop(handler.loop),
-      handler.pool_size,
-      handler.on_init,
-      handler.on_close,
-      transport.Tcp,
+      listener_socket: socket,
+      handler: convert_loop(handler.loop),
+      pool_count: handler.pool_size,
+      on_init: convert_on_init(handler.on_init),
+      on_close: handler.on_close,
+      transport: transport.Tcp,
     )
     |> acceptor.start_pool
     |> result.map_error(fn(err) {
@@ -196,12 +215,12 @@ pub fn serve_ssl(
   })
   |> result.then(fn(socket) {
     Pool(
-      socket,
-      convert_loop(handler.loop),
-      handler.pool_size,
-      handler.on_init,
-      handler.on_close,
-      transport.Ssl,
+      listener_socket: socket,
+      handler: convert_loop(handler.loop),
+      pool_count: handler.pool_size,
+      on_init: convert_on_init(handler.on_init),
+      on_close: handler.on_close,
+      transport: transport.Ssl,
     )
     |> acceptor.start_pool
     |> result.map_error(fn(err) {

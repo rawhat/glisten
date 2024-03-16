@@ -1,3 +1,9 @@
+# Unreleased
+
+- Pass `Connection` as argument in `on_init`
+    - This actually mirrors the `mist` WebSocket API and was clearly just an
+    oversight on my part
+
 # v1.0.0
 
 - Remove default `linger` option on sockets

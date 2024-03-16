@@ -60,7 +60,8 @@ pub type Handler(user_message, data) {
   Handler(
     socket: Socket,
     loop: Loop(user_message, data),
-    on_init: fn() -> #(data, Option(Selector(user_message))),
+    on_init: fn(Connection(user_message)) ->
+      #(data, Option(Selector(user_message))),
     on_close: Option(fn(data) -> Nil),
     transport: Transport,
   )
@@ -74,7 +75,15 @@ pub fn start(
     actor.Spec(
       init: fn() {
         let subject = process.new_subject()
-        let #(initial_state, user_selector) = handler.on_init()
+        let client_ip = transport.peername(handler.transport, handler.socket)
+        let connection =
+          Connection(
+            socket: handler.socket,
+            client_ip: client_ip,
+            transport: handler.transport,
+            sender: subject,
+          )
+        let #(initial_state, user_selector) = handler.on_init(connection)
         let selector =
           process.new_selector()
           |> process.selecting_record3(
@@ -114,7 +123,7 @@ pub fn start(
         }
         actor.Ready(
           LoopState(
-            client_ip: transport.peername(handler.transport, handler.socket),
+            client_ip: client_ip,
             socket: handler.socket,
             sender: subject,
             transport: handler.transport,

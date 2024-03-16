@@ -5,7 +5,9 @@ import gleam/option.{type Option, None}
 import gleam/otp/actor
 import gleam/otp/supervisor
 import gleam/result
-import glisten/internal/handler.{type Loop, Handler, Internal, Ready}
+import glisten/internal/handler.{
+  type Connection, type Loop, Handler, Internal, Ready,
+}
 import glisten/internal/logger
 import glisten/socket.{type ListenSocket, type Socket}
 import glisten/transport.{type Transport}
@@ -96,7 +98,8 @@ pub type Pool(user_message, data) {
     listener_socket: ListenSocket,
     handler: Loop(user_message, data),
     pool_count: Int,
-    on_init: fn() -> #(data, Option(Selector(user_message))),
+    on_init: fn(Connection(user_message)) ->
+      #(data, Option(Selector(user_message))),
     on_close: Option(fn(data) -> Nil),
     transport: Transport,
   )
