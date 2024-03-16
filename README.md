@@ -19,7 +19,7 @@ import glisten.{Packet}
 
 pub fn main() {
   let assert Ok(_) =
-    glisten.handler(fn() { #(Nil, None) }, fn(msg, state, conn) {
+    glisten.handler(fn(_conn) { #(Nil, None) }, fn(msg, state, conn) {
       let assert Packet(msg) = msg
       let assert Ok(_) = glisten.send(conn, bytes_builder.from_bit_array(msg))
       actor.continue(state)
@@ -34,7 +34,7 @@ SSL is also handled using the `glisten.{serve_ssl}` method.  This requires a
 certificate and key file path.  The rest of the handler flow remains unchanged.
 
 `glisten` doesn't provide a public API for connected clients.  In order to hook
-into the socket lifecyle, you can establish some functions which are called
+into the socket lifecycle, you can establish some functions which are called
 for the opening and closing of the socket.  An example is provided below.
 
 To serve over SSL:
