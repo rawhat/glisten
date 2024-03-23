@@ -1,4 +1,4 @@
-# Unreleased
+# v2.0.0
 
 - Pass `Connection` as argument in `on_init`
     - This actually mirrors the `mist` WebSocket API and was clearly just an
