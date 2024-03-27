@@ -8,7 +8,16 @@ supervisor over a pool of socket acceptors.  Each acceptor will block on `accept
 until a connection is opened.  The acceptor will then spawn a handler process
 and then block again on `accept`.
 
-Here is a simple example that will echo received messages:
+Below is a simple example that will echo received messages.  You can get this
+up and running with the following:
+
+```sh
+$ gleam new <your_project>
+$ cd <your_project>
+$ gleam add glisten gleam_erlang gleam_otp
+```
+
+Then place this code in `src/<your_project>.gleam`:
 
 ```gleam
 import gleam/bytes_builder
