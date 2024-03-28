@@ -9,6 +9,8 @@ gleam = ">= 1.0.0"
 gleam_stdlib = "~> 0.35 or ~> 1.0"
 gleam_otp = "~> 0.9"
 gleam_erlang = "~> 0.24"
+telemetry = "~> 1.2"
+logging = "~> 1.0"
 
 [dev-dependencies]
 gleeunit = "~> 1.0"

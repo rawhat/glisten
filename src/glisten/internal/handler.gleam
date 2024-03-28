@@ -1,4 +1,6 @@
+import gleam/dict
 import gleam/dynamic
+import gleam/erlang.{rescue}
 import gleam/erlang/atom
 import gleam/erlang/process.{type Selector, type Subject}
 import gleam/function
@@ -6,9 +8,11 @@ import gleam/option.{type Option, Some}
 import gleam/otp/actor
 import gleam/result
 import gleam/string
+import glisten/internal/telemetry
 import glisten/socket.{type Socket}
 import glisten/socket/options
 import glisten/transport.{type Transport}
+import logging
 
 /// All message types that the handler will receive, or that you can
 /// send to the handler process
@@ -153,7 +157,11 @@ pub fn start(
               }
               Error(err) -> actor.Stop(process.Abnormal(string.inspect(err)))
             }
-          Internal(Ready) ->
+          Internal(Ready) -> {
+            use <- telemetry.span(
+              [telemetry.Glisten, telemetry.Handshake],
+              dict.new(),
+            )
             state.socket
             |> transport.handshake(state.transport, _)
             |> result.replace_error("Failed to handshake socket")
@@ -168,30 +176,55 @@ pub fn start(
               actor.Stop(process.Abnormal(reason))
             })
             |> result.unwrap_both
+          }
           User(msg) -> {
             let msg = Custom(msg)
-            case handler.loop(msg, state.data, connection) {
-              actor.Continue(next_state, _selector) -> {
+            use <- telemetry.span(
+              [telemetry.Glisten, telemetry.HandlerLoop],
+              dict.new(),
+            )
+            let res = rescue(fn() { handler.loop(msg, state.data, connection) })
+            case res {
+              Ok(actor.Continue(next_state, _selector)) -> {
                 let assert Ok(Nil) =
                   transport.set_opts(state.transport, state.socket, [
                     options.ActiveMode(options.Once),
                   ])
                 actor.continue(LoopState(..state, data: next_state))
               }
-              actor.Stop(reason) -> actor.Stop(reason)
+              Ok(actor.Stop(reason)) -> actor.Stop(reason)
+              Error(reason) -> {
+                logging.log(
+                  logging.Error,
+                  "Caught error in user handler: " <> string.inspect(reason),
+                )
+                actor.continue(state)
+              }
             }
           }
           Internal(ReceiveMessage(msg)) -> {
             let msg = Packet(msg)
-            case handler.loop(msg, state.data, connection) {
-              actor.Continue(next_state, _selector) -> {
+            use <- telemetry.span(
+              [telemetry.Glisten, telemetry.HandlerLoop],
+              dict.new(),
+            )
+            let res = rescue(fn() { handler.loop(msg, state.data, connection) })
+            case res {
+              Ok(actor.Continue(next_state, _selector)) -> {
                 let assert Ok(Nil) =
                   transport.set_opts(state.transport, state.socket, [
                     options.ActiveMode(options.Once),
                   ])
                 actor.continue(LoopState(..state, data: next_state))
               }
-              actor.Stop(reason) -> actor.Stop(reason)
+              Ok(actor.Stop(reason)) -> actor.Stop(reason)
+              Error(reason) -> {
+                logging.log(
+                  logging.Error,
+                  "Caught error in user handler: " <> string.inspect(reason),
+                )
+                actor.continue(state)
+              }
             }
           }
         }

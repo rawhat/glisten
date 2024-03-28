@@ -1,3 +1,4 @@
+import gleam/dict
 import gleam/erlang/process.{type Selector, type Subject, Abnormal}
 import gleam/function
 import gleam/iterator
@@ -5,12 +6,14 @@ import gleam/option.{type Option, None}
 import gleam/otp/actor
 import gleam/otp/supervisor
 import gleam/result
+import gleam/string
 import glisten/internal/handler.{
   type Connection, type Loop, Handler, Internal, Ready,
 }
-import glisten/internal/logger
+import glisten/internal/telemetry
 import glisten/socket.{type ListenSocket, type Socket}
 import glisten/transport.{type Transport}
+import logging
 
 pub type AcceptorMessage {
   AcceptConnection(ListenSocket)
@@ -53,9 +56,17 @@ pub fn start(
       case msg {
         AcceptConnection(listener) -> {
           let res = {
+            use <- telemetry.span(
+              [telemetry.Glisten, telemetry.Acceptor],
+              dict.new(),
+            )
             use sock <- result.then(
               transport.accept(state.transport, listener)
               |> result.replace_error(AcceptError),
+            )
+            use <- telemetry.span(
+              [telemetry.Glisten, telemetry.Acceptor, telemetry.HandlerStart],
+              dict.new(),
             )
             use start <- result.then(
               Handler(
@@ -79,7 +90,10 @@ pub fn start(
           }
           case res {
             Error(reason) -> {
-              logger.error(#("Failed to accept/start handler", reason))
+              logging.log(
+                logging.Error,
+                "Failed to accept/start handler: " <> string.inspect(reason),
+              )
               actor.Stop(Abnormal("Failed to accept/start handler"))
             }
             _val -> {
