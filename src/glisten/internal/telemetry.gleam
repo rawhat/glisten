@@ -1,5 +1,8 @@
 import gleam/dict.{type Dict}
 import gleam/dynamic.{type Dynamic}
+import gleam/erlang/atom.{type Atom}
+import gleam/int
+import gleam/result
 import gleam/string
 import logging
 
@@ -8,6 +11,9 @@ pub type Data {
 }
 
 pub type Event {
+  Start
+  Stop
+
   Glisten
 
   Handshake
@@ -17,41 +23,105 @@ pub type Event {
 
   Acceptor
   HandlerStart
+
+  HandlerInit
 }
+
+type TimeUnit {
+  Native
+  Microsecond
+}
+
+@external(erlang, "erlang", "convert_time_unit")
+fn convert_time_unit(
+  time: Int,
+  from from_unit: TimeUnit,
+  to to_unit: TimeUnit,
+) -> Int
 
 pub fn log(
   path: List(Event),
-  measurements: Dict(String, Dynamic),
-  metadata: Dict(String, Dynamic),
+  measurements: Dict(Atom, Dynamic),
+  _metadata: Dict(String, Dynamic),
   _config: List(config),
 ) -> Nil {
-  logging.log(
-    logging.Debug,
-    string.inspect(path)
-      <> " metadata: "
-      <> string.inspect(metadata)
-      <> ", measurements: "
-      <> string.inspect(measurements),
-  )
+  let duration_string =
+    dict.get(measurements, atom.create_from_string("duration"))
+    |> result.then(fn(val) { result.nil_error(dynamic.int(val)) })
+    |> result.map(convert_time_unit(_, Native, Microsecond))
+    |> result.map(fn(time) { " duration: " <> int.to_string(time) <> "μs, " })
+    |> result.unwrap("")
+
+  logging.log(logging.Debug, string.inspect(path) <> duration_string)
+  // <> " metadata: "
+  // <> string.inspect(metadata),
 }
 
-@external(erlang, "telemetry", "span")
 pub fn span(
   path: List(Event),
   metadata: Dict(String, Dynamic),
   wrapping: fn() -> return,
+) -> return {
+  use <- do_span(path, metadata)
+  let res = wrapping()
+  #(res, dict.new())
+}
+
+@external(erlang, "telemetry", "span")
+fn do_span(
+  path: List(Event),
+  metadata: Dict(String, Dynamic),
+  wrapping: fn() -> #(return, Dict(String, Dynamic)),
 ) -> return
 
-@external(erlang, "telemetry", "attach_many")
 pub fn attach_many(
   id: String,
   path: List(List(Event)),
   handler: fn(
     List(Event),
-    Dict(String, Dynamic),
+    Dict(Atom, Dynamic),
     Dict(String, Dynamic),
     List(config),
   ) ->
     Nil,
-  config: List(any),
+) -> Nil {
+  do_attach_many(id, path, handler, Nil)
+}
+
+@external(erlang, "telemetry", "attach_many")
+fn do_attach_many(
+  id: String,
+  path: List(List(Event)),
+  handler: fn(
+    List(Event),
+    Dict(Atom, Dynamic),
+    Dict(String, Dynamic),
+    List(config),
+  ) ->
+    Nil,
+  config: Nil,
 ) -> Nil
+
+@external(erlang, "telemetry", "attach")
+pub fn attach(
+  id: String,
+  event: List(Event),
+  handler: fn(
+    List(Event),
+    Dict(Atom, Dynamic),
+    Dict(String, Dynamic),
+    List(config),
+  ) ->
+    Nil,
+  config: Nil,
+) -> Nil
+
+pub const events = [
+  [Glisten, Handshake, Stop],
+  [Glisten, HandlerLoop, Stop],
+  [Glisten, Acceptor, HandlerStart, Stop],
+]
+
+pub fn configure_logger() -> Nil {
+  attach_many("glisten-logger", events, log)
+}

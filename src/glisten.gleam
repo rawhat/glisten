@@ -5,7 +5,6 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import glisten/internal/acceptor.{Pool}
 import glisten/internal/handler.{type ClientIp as InternalClientIp}
-import glisten/internal/telemetry
 import glisten/socket.{
   type Socket as InternalSocket, type SocketReason as InternalSocketReason,
   Closed, Timeout,
@@ -232,15 +231,4 @@ pub fn serve_ssl(
       }
     })
   })
-}
-
-const events = [
-  [telemetry.Glisten, telemetry.Handshake],
-  [telemetry.Glisten, telemetry.HandlerLoop],
-  [telemetry.Glisten, telemetry.Acceptor],
-  [telemetry.Glisten, telemetry.Acceptor, telemetry.HandlerStart],
-]
-
-pub fn configure_logger() -> Nil {
-  telemetry.attach_many("glisten/telemetry", events, telemetry.log, [])
 }

@@ -1,4 +1,3 @@
-import gleam/dict
 import gleam/dynamic
 import gleam/erlang.{rescue}
 import gleam/erlang/atom
@@ -8,7 +7,6 @@ import gleam/option.{type Option, Some}
 import gleam/otp/actor
 import gleam/result
 import gleam/string
-import glisten/internal/telemetry
 import glisten/socket.{type Socket}
 import glisten/socket/options
 import glisten/transport.{type Transport}
@@ -157,11 +155,7 @@ pub fn start(
               }
               Error(err) -> actor.Stop(process.Abnormal(string.inspect(err)))
             }
-          Internal(Ready) -> {
-            use <- telemetry.span(
-              [telemetry.Glisten, telemetry.Handshake],
-              dict.new(),
-            )
+          Internal(Ready) ->
             state.socket
             |> transport.handshake(state.transport, _)
             |> result.replace_error("Failed to handshake socket")
@@ -176,13 +170,9 @@ pub fn start(
               actor.Stop(process.Abnormal(reason))
             })
             |> result.unwrap_both
-          }
+
           User(msg) -> {
             let msg = Custom(msg)
-            use <- telemetry.span(
-              [telemetry.Glisten, telemetry.HandlerLoop],
-              dict.new(),
-            )
             let res = rescue(fn() { handler.loop(msg, state.data, connection) })
             case res {
               Ok(actor.Continue(next_state, _selector)) -> {
@@ -204,10 +194,6 @@ pub fn start(
           }
           Internal(ReceiveMessage(msg)) -> {
             let msg = Packet(msg)
-            use <- telemetry.span(
-              [telemetry.Glisten, telemetry.HandlerLoop],
-              dict.new(),
-            )
             let res = rescue(fn() { handler.loop(msg, state.data, connection) })
             case res {
               Ok(actor.Continue(next_state, _selector)) -> {

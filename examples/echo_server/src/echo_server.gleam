@@ -15,7 +15,6 @@ pub fn main() {
       #(atom.create_from_string("level"), atom.create_from_string("debug")),
     ]),
   )
-  glisten.configure_logger()
 
   let assert Ok(_) =
     glisten.handler(fn(_conn) { #(Nil, None) }, fn(msg, state, conn) {

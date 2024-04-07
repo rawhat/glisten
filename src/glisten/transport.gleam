@@ -3,6 +3,7 @@ import gleam/dynamic.{type Dynamic}
 import gleam/erlang/atom.{type Atom}
 import gleam/erlang/process.{type Pid}
 import gleam/dict.{type Dict}
+import gleam/result
 import glisten/socket/options
 import glisten/socket.{type ListenSocket, type Socket, type SocketReason}
 import glisten/ssl
@@ -147,3 +148,23 @@ pub fn peername(
 
 @external(erlang, "socket", "info")
 pub fn socket_info(socket: Socket) -> Dict(Atom, Dynamic)
+
+@external(erlang, "inet", "getopts")
+pub fn get_socket_opts(
+  socket: Socket,
+  opts: List(Atom),
+) -> Result(List(#(Atom, Dynamic)), Nil)
+
+pub fn set_buffer_size(transport: Transport, socket: Socket) -> Result(Nil, Nil) {
+  socket
+  |> get_socket_opts([atom.create_from_string("recbuf")])
+  |> result.then(fn(p) {
+    case p {
+      [#(_buffer, value)] -> result.nil_error(dynamic.int(value))
+      _ -> Error(Nil)
+    }
+  })
+  |> result.then(fn(value) {
+    set_opts(transport, socket, [options.Buffer(value)])
+  })
+}

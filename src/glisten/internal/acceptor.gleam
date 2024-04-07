@@ -1,7 +1,6 @@
-import gleam/dict
 import gleam/erlang/process.{type Selector, type Subject, Abnormal}
 import gleam/function
-import gleam/iterator
+import gleam/list
 import gleam/option.{type Option, None}
 import gleam/otp/actor
 import gleam/otp/supervisor
@@ -10,7 +9,6 @@ import gleam/string
 import glisten/internal/handler.{
   type Connection, type Loop, Handler, Internal, Ready,
 }
-import glisten/internal/telemetry
 import glisten/socket.{type ListenSocket, type Socket}
 import glisten/transport.{type Transport}
 import logging
@@ -56,18 +54,19 @@ pub fn start(
       case msg {
         AcceptConnection(listener) -> {
           let res = {
-            use <- telemetry.span(
-              [telemetry.Glisten, telemetry.Acceptor],
-              dict.new(),
-            )
             use sock <- result.then(
               transport.accept(state.transport, listener)
               |> result.replace_error(AcceptError),
             )
-            use <- telemetry.span(
-              [telemetry.Glisten, telemetry.Acceptor, telemetry.HandlerStart],
-              dict.new(),
-            )
+            let _ =
+              transport.set_buffer_size(pool.transport, sock)
+              |> result.map_error(fn(err) {
+                logging.log(
+                  logging.Warning,
+                  "Failed to read `recbuf` size, using default: "
+                    <> string.inspect(err),
+                )
+              })
             use start <- result.then(
               Handler(
                 socket: sock,
@@ -131,8 +130,8 @@ pub fn start_pool(
     max_frequency: 100,
     frequency_period: 1,
     init: fn(children) {
-      iterator.range(from: 0, to: pool.pool_count)
-      |> iterator.fold(children, fn(children, _index) {
+      list.range(from: 0, to: pool.pool_count)
+      |> list.fold(children, fn(children, _index) {
         supervisor.add(children, supervisor.worker(fn(_arg) { start(pool) }))
       })
     },

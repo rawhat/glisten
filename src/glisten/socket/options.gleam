@@ -32,6 +32,7 @@ pub type TcpOption {
   Keyfile(String)
   AlpnPreferredProtocols(List(String))
   Inet6
+  Buffer(Int)
 }
 
 pub fn to_dict(options: List(TcpOption)) -> Dict(atom.Atom, Dynamic) {
