@@ -183,7 +183,7 @@ pub fn serve(
   handler: Handler(user_message, data),
   port: Int,
 ) -> Result(Subject(supervisor.Message), StartError) {
-  tcp.listen(port, [options.AlpnPreferredProtocols(["http/1.1"])])
+  tcp.listen(port, [])
   |> result.map_error(fn(err) {
     case err {
       Closed -> ListenerClosed
