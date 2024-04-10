@@ -1,11 +1,11 @@
 import gleam/bytes_builder.{type BytesBuilder}
+import gleam/dict.{type Dict}
 import gleam/dynamic.{type Dynamic}
 import gleam/erlang/atom.{type Atom}
 import gleam/erlang/process.{type Pid}
-import gleam/dict.{type Dict}
 import gleam/result
-import glisten/socket/options
 import glisten/socket.{type ListenSocket, type Socket, type SocketReason}
+import glisten/socket/options
 import glisten/ssl
 import glisten/tcp
 
@@ -149,15 +149,19 @@ pub fn peername(
 @external(erlang, "socket", "info")
 pub fn socket_info(socket: Socket) -> Dict(Atom, Dynamic)
 
-@external(erlang, "inet", "getopts")
 pub fn get_socket_opts(
+  transport: Transport,
   socket: Socket,
   opts: List(Atom),
-) -> Result(List(#(Atom, Dynamic)), Nil)
+) -> Result(List(#(Atom, Dynamic)), Nil) {
+  case transport {
+    Tcp -> tcp.get_socket_opts(socket, opts)
+    Ssl -> ssl.get_socket_opts(socket, opts)
+  }
+}
 
 pub fn set_buffer_size(transport: Transport, socket: Socket) -> Result(Nil, Nil) {
-  socket
-  |> get_socket_opts([atom.create_from_string("recbuf")])
+  get_socket_opts(transport, socket, [atom.create_from_string("recbuf")])
   |> result.then(fn(p) {
     case p {
       [#(_buffer, value)] -> result.nil_error(dynamic.int(value))

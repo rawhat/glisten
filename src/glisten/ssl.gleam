@@ -1,9 +1,9 @@
 import gleam/bytes_builder.{type BytesBuilder}
+import gleam/dict
 import gleam/dynamic.{type Dynamic}
 import gleam/erlang/atom.{type Atom}
 import gleam/erlang/process.{type Pid}
 import gleam/list
-import gleam/dict
 import glisten/socket.{type ListenSocket, type Socket, type SocketReason}
 import glisten/socket/options
 
@@ -85,3 +85,9 @@ pub fn peername(socket: Socket) -> Result(#(#(Int, Int, Int, Int), Int), Nil)
 
 @external(erlang, "glisten_ssl_ffi", "start_ssl")
 pub fn start() -> Result(Nil, Dynamic)
+
+@external(erlang, "ssl", "getopts")
+pub fn get_socket_opts(
+  socket: Socket,
+  opts: List(Atom),
+) -> Result(List(#(Atom, Dynamic)), Nil)

@@ -1,9 +1,9 @@
 import gleam/bytes_builder.{type BytesBuilder}
+import gleam/dict.{type Dict}
 import gleam/dynamic.{type Dynamic}
 import gleam/erlang/atom.{type Atom}
 import gleam/erlang/process.{type Pid}
 import gleam/list
-import gleam/dict.{type Dict}
 import glisten/socket.{type ListenSocket, type Socket, type SocketReason}
 import glisten/socket/options.{type TcpOption}
 
@@ -83,3 +83,9 @@ pub fn negotiated_protocol(socket: Socket) -> a
 
 @external(erlang, "inet", "peername")
 pub fn peername(socket: Socket) -> Result(#(#(Int, Int, Int, Int), Int), Nil)
+
+@external(erlang, "inet", "getopts")
+pub fn get_socket_opts(
+  socket: Socket,
+  opts: List(Atom),
+) -> Result(List(#(Atom, Dynamic)), Nil)
