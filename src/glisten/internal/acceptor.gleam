@@ -58,15 +58,6 @@ pub fn start(
               transport.accept(state.transport, listener)
               |> result.replace_error(AcceptError),
             )
-            let _ =
-              transport.set_buffer_size(pool.transport, sock)
-              |> result.map_error(fn(err) {
-                logging.log(
-                  logging.Warning,
-                  "Failed to read `recbuf` size, using default: "
-                    <> string.inspect(err),
-                )
-              })
             use start <- result.then(
               Handler(
                 socket: sock,
