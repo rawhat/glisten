@@ -1,7 +1,10 @@
 import gleam/bytes_builder.{type BytesBuilder}
 import gleam/dynamic.{type Dynamic}
 import gleam/erlang/process.{type Selector, type Subject}
+import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/otp/actor
+import gleam/otp/supervisor
 import gleam/result
 import glisten/internal/acceptor.{Pool}
 import glisten/internal/handler.{type ClientIp as InternalClientIp}
@@ -10,11 +13,9 @@ import glisten/socket.{
   Closed, Timeout,
 }
 import glisten/socket/options.{Certfile, Keyfile}
-import glisten/transport.{type Transport}
-import glisten/tcp
 import glisten/ssl
-import gleam/otp/actor
-import gleam/otp/supervisor
+import glisten/tcp
+import glisten/transport.{type Transport}
 
 /// Reasons that `serve` might fail
 pub type StartError {
@@ -78,6 +79,7 @@ pub opaque type Handler(user_message, data) {
     loop: Loop(user_message, data),
     on_close: Option(fn(data) -> Nil),
     pool_size: Int,
+    http2_support: Bool,
   )
 }
 
@@ -142,7 +144,13 @@ pub fn handler(
     #(data, Option(Selector(user_message))),
   loop: Loop(user_message, data),
 ) -> Handler(user_message, data) {
-  Handler(on_init: on_init, loop: loop, on_close: None, pool_size: 10)
+  Handler(
+    on_init: on_init,
+    loop: loop,
+    on_close: None,
+    pool_size: 10,
+    http2_support: False,
+  )
 }
 
 /// Adds a function to the handler to be called when the connection is closed.
@@ -161,13 +169,21 @@ pub fn with_pool_size(
   Handler(..handler, pool_size: size)
 }
 
+/// Sets the ALPN supported protocols to include HTTP/2.  It's currently being
+/// exposed only for `mist` to provide this support.  For a TCP library, you
+/// definitely do not need it.
+pub fn with_http2(
+  handler: Handler(user_message, data),
+) -> Handler(user_message, data) {
+  Handler(..handler, http2_support: True)
+}
+
 /// Start the TCP server with the given handler on the provided port
 pub fn serve(
   handler: Handler(user_message, data),
   port: Int,
 ) -> Result(Subject(supervisor.Message), StartError) {
-  port
-  |> tcp.listen([])
+  tcp.listen(port, [options.AlpnPreferredProtocols(["http/1.1"])])
   |> result.map_error(fn(err) {
     case err {
       Closed -> ListenerClosed
@@ -204,8 +220,12 @@ pub fn serve_ssl(
   keyfile keyfile: String,
 ) -> Result(Subject(supervisor.Message), StartError) {
   let assert Ok(_nil) = ssl.start()
-  port
-  |> ssl.listen([Certfile(certfile), Keyfile(keyfile)])
+  let ssl_options = [Certfile(certfile), Keyfile(keyfile)]
+  let protocol_options = case handler.http2_support {
+    True -> [options.AlpnPreferredProtocols(["h2", "http/1.1"])]
+    False -> [options.AlpnPreferredProtocols(["http/1.1"])]
+  }
+  ssl.listen(port, list.concat([ssl_options, protocol_options]))
   |> result.map_error(fn(err) {
     case err {
       Closed -> ListenerClosed

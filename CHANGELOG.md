@@ -1,3 +1,10 @@
+# Unreleased
+
+- Set `buffer` on socket based on `recvbuf` per erlang documentation
+- Use `logging` library instead of custom logger
+- Add some (unused) telemetry events
+- Add flag for `http2` support to handler for `mist`
+
 # v2.0.0
 
 - Pass `Connection` as argument in `on_init`
