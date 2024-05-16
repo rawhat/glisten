@@ -9,8 +9,8 @@ import gleam/result
 import glisten/internal/acceptor.{Pool}
 import glisten/internal/handler.{type ClientIp as InternalClientIp}
 import glisten/socket.{
-  type Socket as InternalSocket, type SocketReason as InternalSocketReason,
-  Closed, Timeout,
+  type ListenSocket, type Socket as InternalSocket,
+  type SocketReason as InternalSocketReason, Closed, Timeout,
 }
 import glisten/socket/options.{Certfile, Keyfile}
 import glisten/ssl
@@ -44,6 +44,34 @@ pub type Socket =
 
 pub type SocketReason =
   InternalSocketReason
+
+type ServerPort {
+  Provided(Int)
+  Assigned
+}
+
+pub opaque type Server {
+  Server(
+    supervisor: Subject(supervisor.Message),
+    port: ServerPort,
+    socket: ListenSocket,
+  )
+}
+
+pub fn get_port(server: Server) -> Result(Int, Nil) {
+  case server.port {
+    Provided(value) -> Ok(value)
+    Assigned -> {
+      server.socket
+      |> transport.port
+      |> result.nil_error
+    }
+  }
+}
+
+pub fn get_supervisor(server: Server) -> Subject(supervisor.Message) {
+  server.supervisor
+}
 
 /// This type holds useful bits of data for the active connection.
 pub type Connection(user_message) {
@@ -182,7 +210,7 @@ pub fn with_http2(
 pub fn serve(
   handler: Handler(user_message, data),
   port: Int,
-) -> Result(Subject(supervisor.Message), StartError) {
+) -> Result(Server, StartError) {
   tcp.listen(port, [])
   |> result.map_error(fn(err) {
     case err {
@@ -208,6 +236,16 @@ pub fn serve(
         actor.InitCrashed(reason) -> AcceptorCrashed(reason)
       }
     })
+    |> result.map(fn(pool) {
+      Server(
+        port: case port {
+          0 -> Assigned
+          val -> Provided(val)
+        },
+        supervisor: pool,
+        socket: socket,
+      )
+    })
   })
 }
 
@@ -218,7 +256,7 @@ pub fn serve_ssl(
   port port: Int,
   certfile certfile: String,
   keyfile keyfile: String,
-) -> Result(Subject(supervisor.Message), StartError) {
+) -> Result(Server, StartError) {
   let assert Ok(_nil) = ssl.start()
   let ssl_options = [Certfile(certfile), Keyfile(keyfile)]
   let protocol_options = case handler.http2_support {
@@ -249,6 +287,16 @@ pub fn serve_ssl(
         actor.InitFailed(reason) -> AcceptorFailed(reason)
         actor.InitCrashed(reason) -> AcceptorCrashed(reason)
       }
+    })
+    |> result.map(fn(pool) {
+      Server(
+        port: case port {
+          0 -> Assigned
+          val -> Provided(val)
+        },
+        supervisor: pool,
+        socket: socket,
+      )
     })
   })
 }

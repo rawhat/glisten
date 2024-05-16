@@ -174,4 +174,4 @@ pub fn set_buffer_size(transport: Transport, socket: Socket) -> Result(Nil, Nil)
 }
 
 @external(erlang, "inet", "port")
-pub fn port(socket: ListenSocket) -> Int
+pub fn port(socket: ListenSocket) -> Result(Int, unknown)
