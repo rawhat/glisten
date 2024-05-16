@@ -4,6 +4,9 @@
 - Use `logging` library instead of custom logger
 - Add some (unused) telemetry events
 - Add flag for `http2` support to handler for `mist`
+- Update `serve`/`serve_ssl` methods to return `Server` record. This allows for
+  accessing an OS-assigned port if 0 is provided.  It will also help enable
+  graceful shutdown later
 
 # v2.0.0
 
