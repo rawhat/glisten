@@ -1,4 +1,4 @@
-# Unreleased
+# v3.0.0
 
 - Set `buffer` on socket based on `recvbuf` per erlang documentation
 - Use `logging` library instead of custom logger
@@ -7,6 +7,7 @@
 - Update `serve`/`serve_ssl` methods to return `Server` record. This allows for
   accessing an OS-assigned port if 0 is provided.  It will also help enable
   graceful shutdown later
+- Fix some function deprecation warnings in the standard library
 
 # v2.0.0
 
