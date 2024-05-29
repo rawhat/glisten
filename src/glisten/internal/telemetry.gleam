@@ -117,8 +117,7 @@ pub fn attach(
 ) -> Nil
 
 pub const events = [
-  [Glisten, Handshake, Stop],
-  [Glisten, HandlerLoop, Stop],
+  [Glisten, Handshake, Stop], [Glisten, HandlerLoop, Stop],
   [Glisten, Acceptor, HandlerStart, Stop],
 ]
 
