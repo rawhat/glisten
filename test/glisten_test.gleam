@@ -5,9 +5,9 @@ import gleam/option.{None}
 import gleam/otp/actor
 import gleeunit
 import gleeunit/should
+import glisten.{Packet}
 import glisten/socket/options
 import glisten/tcp
-import glisten.{Packet}
 import tcp_client
 
 pub fn main() {
@@ -24,7 +24,7 @@ pub fn it_echoes_messages_test() {
   let _server =
     process.start(
       fn() {
-        let assert Nil = process.send(client_subject, Connected)
+        let Nil = process.send(client_subject, Connected)
         let assert Ok(listener) =
           tcp.listen(9999, [options.ActiveMode(options.Passive)])
         let assert Ok(socket) = tcp.accept(listener)
@@ -65,13 +65,13 @@ pub fn it_accepts_from_the_pool_test() {
         let client_selector =
           process.selecting_anything(
             process.new_selector(),
-            dynamic.unsafe_coerce,
+            dynamic.tuple3(dynamic.dynamic, dynamic.dynamic, dynamic.bit_array),
           )
         let client = tcp_client.connect(9998)
         let assert Ok(_) =
           tcp.send(client, bytes_builder.from_bit_array(<<"hi mom":utf8>>))
-        let assert Ok(#(_tcp, _port, msg)) =
-          process.select(client_selector, 200)
+        let msg = process.select(client_selector, 200)
+        let assert Ok(Ok(#(_tcp, _port, msg))) = msg
         process.send(client_sender, msg)
       },
       False,

@@ -1,8 +1,7 @@
+import gleam/dict.{type Dict}
 import gleam/dynamic.{type Dynamic}
 import gleam/erlang/atom
 import gleam/list
-import gleam/dict.{type Dict}
-import gleam/pair
 
 /// Mode for the socket.  Currently `list` is not supported
 pub type SocketMode {
@@ -35,7 +34,7 @@ pub type TcpOption {
   Buffer(Int)
 }
 
-pub fn to_dict(options: List(TcpOption)) -> Dict(atom.Atom, Dynamic) {
+pub fn to_dict(options: List(TcpOption)) -> Dict(Dynamic, Dynamic) {
   let opt_decoder = dynamic.tuple2(dynamic.dynamic, dynamic.dynamic)
 
   options
@@ -56,18 +55,12 @@ pub fn to_dict(options: List(TcpOption)) -> Dict(atom.Atom, Dynamic) {
     }
   })
   |> list.filter_map(opt_decoder)
-  |> list.map(pair.map_first(_, dynamic.unsafe_coerce))
   |> dict.from_list
 }
 
 pub const default_options = [
-  Backlog(1024),
-  Nodelay(True),
-  SendTimeout(30_000),
-  SendTimeoutClose(True),
-  Reuseaddr(True),
-  Mode(Binary),
-  ActiveMode(Passive),
+  Backlog(1024), Nodelay(True), SendTimeout(30_000), SendTimeoutClose(True),
+  Reuseaddr(True), Mode(Binary), ActiveMode(Passive),
 ]
 
 pub fn merge_with_defaults(options: List(TcpOption)) -> List(TcpOption) {
@@ -78,6 +71,8 @@ pub fn merge_with_defaults(options: List(TcpOption)) -> List(TcpOption) {
   |> dict.merge(overrides)
   |> dict.to_list
   |> list.map(dynamic.from)
-  |> list.map(dynamic.unsafe_coerce)
-  |> list.append([Inet6])
+  |> add_inet6
 }
+
+@external(erlang, "glisten_ffi", "add_inet6")
+fn add_inet6(options: List(Dynamic)) -> List(TcpOption)

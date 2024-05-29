@@ -84,10 +84,6 @@ pub type SocketReason {
   Exdev
 }
 
-pub opaque type ListenSocket {
-  ListenSocket
-}
+pub type ListenSocket
 
-pub opaque type Socket {
-  Socket
-}
+pub type Socket
