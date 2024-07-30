@@ -192,7 +192,7 @@ pub fn peername(
 }
 
 @external(erlang, "inet", "ipv4_mapped_ipv6_address")
-pub fn convert_address(address: address) -> Dynamic
+fn convert_address(address: address) -> Dynamic
 
 @external(erlang, "socket", "info")
 pub fn socket_info(socket: Socket) -> Dict(Atom, Dynamic)

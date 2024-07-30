@@ -53,10 +53,10 @@ type ServerPort {
   Assigned
 }
 
-/// This holds information about the server.  Returned by the `start_*_server`
-/// methods, it will allow you to get access to an OS-assigned port.
-/// Eventually, it will be used for graceful shutdown, and potentially other
-/// information.
+/// This holds information about the server.  Returned by the `start_server` /
+/// `start_ssl_server` methods, it will allow you to get access to an
+/// OS-assigned port. Eventually, it will be used for graceful shutdown, and
+/// potentially other information.
 pub opaque type Server {
   Server(
     port: ServerPort,
@@ -89,7 +89,7 @@ pub type Connection(user_message) {
   )
 }
 
-/// Attempts to read the IP address and port of a connected client.  It will
+/// Tries to read the IP address and port of a connected client.  It will
 /// return valid IPv4 or IPv6 addresses, attempting to return the most relevant
 /// one for the client.
 pub fn get_client_info(

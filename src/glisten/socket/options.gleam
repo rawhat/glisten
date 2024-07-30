@@ -8,7 +8,7 @@ pub type SocketMode {
   Binary
 }
 
-/// Mapping to the {active, _} option
+/// Mapping to the `{active, _}` option
 pub type ActiveState {
   Once
   Passive
