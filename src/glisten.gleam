@@ -7,7 +7,7 @@ import gleam/otp/actor
 import gleam/otp/supervisor
 import gleam/result
 import glisten/internal/acceptor.{Pool}
-import glisten/internal/handler.{type ClientIp as InternalClientIp}
+import glisten/internal/handler
 import glisten/socket.{
   type ListenSocket, type Socket as InternalSocket,
   type SocketReason as InternalSocketReason, Closed, Timeout,
@@ -36,8 +36,13 @@ pub type Message(user_message) {
   User(user_message)
 }
 
+pub type IpAddress {
+  IpV4(Int, Int, Int, Int)
+  IpV6(Int, Int, Int, Int, Int, Int, Int, Int)
+}
+
 pub type ClientIp =
-  InternalClientIp
+  Result(#(IpAddress, Int), Nil)
 
 pub type Socket =
   InternalSocket
@@ -76,14 +81,26 @@ pub fn get_supervisor(server: Server) -> Subject(supervisor.Message) {
 /// This type holds useful bits of data for the active connection.
 pub type Connection(user_message) {
   Connection(
-    /// This will be optionally a tuple for the IPv4 of the other end of the
-    /// socket
-    client_ip: ClientIp,
     socket: Socket,
     /// This provides a uniform interface for both TCP and SSL methods.
     transport: Transport,
     subject: Subject(handler.Message(user_message)),
   )
+}
+
+pub fn get_client_info(
+  conn: Connection(user_message),
+) -> Result(#(IpAddress, Int), Nil) {
+  transport.peername(conn.transport, conn.socket)
+  |> result.map(fn(pair) {
+    case pair {
+      #(transport.IpV4(a, b, c, d), port) -> #(IpV4(a, b, c, d), port)
+      #(transport.IpV6(a, b, c, d, e, f, g, h), port) -> #(
+        IpV6(a, b, c, d, e, f, g, h),
+        port,
+      )
+    }
+  })
 }
 
 /// Sends a BytesBuilder message over the socket using the active transport
@@ -126,8 +143,7 @@ fn convert_loop(
   loop: Loop(user_message, data),
 ) -> handler.Loop(user_message, data) {
   fn(msg, data, conn: handler.Connection(user_message)) {
-    let conn =
-      Connection(conn.client_ip, conn.socket, conn.transport, conn.sender)
+    let conn = Connection(conn.socket, conn.transport, conn.sender)
     case msg {
       handler.Packet(msg) -> {
         case loop(Packet(msg), data, conn) {
@@ -155,7 +171,6 @@ fn convert_on_init(
   fn(conn: handler.Connection(user_message)) {
     let connection =
       Connection(
-        client_ip: conn.client_ip,
         subject: conn.sender,
         socket: conn.socket,
         transport: conn.transport,
@@ -210,6 +225,29 @@ pub fn with_http2(
 pub fn serve(
   handler: Handler(user_message, data),
   port: Int,
+) -> Result(Subject(supervisor.Message), StartError) {
+  start_server(handler, port)
+  |> result.map(get_supervisor)
+}
+
+/// Start the SSL server with the given handler on the provided port.  The key
+/// and cert files must be provided, valid, and readable by the current user.
+pub fn serve_ssl(
+  handler: Handler(user_message, data),
+  port port: Int,
+  certfile certfile: String,
+  keyfile keyfile: String,
+) -> Result(Subject(supervisor.Message), StartError) {
+  start_ssl_server(handler, port, certfile, keyfile)
+  |> result.map(get_supervisor)
+}
+
+/// Starts a TCP server and returns the `Server` construct.  This is useful if
+/// you need access to the port. In the future, it will also allow graceful
+/// shutdown. There may also be other metadata attached to this return value.
+pub fn start_server(
+  handler: Handler(user_message, data),
+  port: Int,
 ) -> Result(Server, StartError) {
   tcp.listen(port, [])
   |> result.map_error(fn(err) {
@@ -249,9 +287,10 @@ pub fn serve(
   })
 }
 
-/// Start the SSL server with the given handler on the provided port.  The key
-/// and cert files must be provided, valid, and readable by the current user.
-pub fn serve_ssl(
+/// Starts an SSL server and returns the `Server` construct.  This is useful if
+/// you need access to the port. In the future, it will also allow graceful
+/// shutdown. There may also be other metadata attached to this return value.
+pub fn start_ssl_server(
   handler: Handler(user_message, data),
   port port: Int,
   certfile certfile: String,

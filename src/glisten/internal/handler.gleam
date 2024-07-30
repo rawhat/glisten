@@ -9,7 +9,7 @@ import gleam/result
 import gleam/string
 import glisten/socket.{type Socket}
 import glisten/socket/options
-import glisten/transport.{type Transport}
+import glisten/transport.{type IpAddress, type Transport}
 import logging
 
 /// All message types that the handler will receive, or that you can
@@ -33,7 +33,7 @@ pub type LoopMessage(user_message) {
 }
 
 pub type ClientIp =
-  Result(#(#(Int, Int, Int, Int), Int), Nil)
+  Result(#(IpAddress, Int), Nil)
 
 pub type LoopState(user_message, data) {
   LoopState(

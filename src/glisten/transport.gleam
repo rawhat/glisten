@@ -1,6 +1,6 @@
 import gleam/bytes_builder.{type BytesBuilder}
 import gleam/dict.{type Dict}
-import gleam/dynamic.{type Dynamic}
+import gleam/dynamic.{type Decoder, type Dynamic}
 import gleam/erlang/atom.{type Atom}
 import gleam/erlang/process.{type Pid}
 import gleam/result
@@ -136,15 +136,63 @@ pub fn negotiated_protocol(
   }
 }
 
+pub type IpAddress {
+  IpV4(Int, Int, Int, Int)
+  IpV6(Int, Int, Int, Int, Int, Int, Int, Int)
+}
+
+fn decode_ipv4() -> Decoder(IpAddress) {
+  dynamic.decode4(
+    IpV4,
+    dynamic.element(0, dynamic.int),
+    dynamic.element(1, dynamic.int),
+    dynamic.element(2, dynamic.int),
+    dynamic.element(3, dynamic.int),
+  )
+}
+
+fn decode_ipv6() -> Decoder(IpAddress) {
+  fn(dyn) {
+    dynamic.decode8(
+      IpV6,
+      dynamic.element(0, dynamic.int),
+      dynamic.element(1, dynamic.int),
+      dynamic.element(2, dynamic.int),
+      dynamic.element(3, dynamic.int),
+      dynamic.element(4, dynamic.int),
+      dynamic.element(5, dynamic.int),
+      dynamic.element(6, dynamic.int),
+      dynamic.element(7, dynamic.int),
+    )(dyn)
+    |> result.then(fn(ip) {
+      case ip {
+        IpV6(0, 0, 0, 0, 0, 65_535, a, b) -> {
+          decode_ipv4()(convert_address(#(0, 0, 0, 0, 0, 65_535, a, b)))
+        }
+        _ -> Ok(ip)
+      }
+    })
+  }
+}
+
 pub fn peername(
   transport: Transport,
   socket: Socket,
-) -> Result(#(#(Int, Int, Int, Int), Int), Nil) {
+) -> Result(#(IpAddress, Int), Nil) {
   case transport {
     Tcp -> tcp.peername(socket)
     Ssl -> ssl.peername(socket)
   }
+  |> result.then(fn(pair) {
+    let #(ip_address, port) = pair
+    dynamic.any([decode_ipv6(), decode_ipv4()])(ip_address)
+    |> result.map(fn(ip) { #(ip, port) })
+    |> result.nil_error
+  })
 }
+
+@external(erlang, "inet", "ipv4_mapped_ipv6_address")
+pub fn convert_address(address: address) -> Dynamic
 
 @external(erlang, "socket", "info")
 pub fn socket_info(socket: Socket) -> Dict(Atom, Dynamic)
