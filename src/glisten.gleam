@@ -36,13 +36,11 @@ pub type Message(user_message) {
   User(user_message)
 }
 
+/// This is used to describe the connecting client's IP address.
 pub type IpAddress {
   IpV4(Int, Int, Int, Int)
   IpV6(Int, Int, Int, Int, Int, Int, Int, Int)
 }
-
-pub type ClientIp =
-  Result(#(IpAddress, Int), Nil)
 
 pub type Socket =
   InternalSocket
@@ -55,6 +53,10 @@ type ServerPort {
   Assigned
 }
 
+/// This holds information about the server.  Returned by the `start_*_server`
+/// methods, it will allow you to get access to an OS-assigned port.
+/// Eventually, it will be used for graceful shutdown, and potentially other
+/// information.
 pub opaque type Server {
   Server(
     supervisor: Subject(supervisor.Message),
@@ -63,6 +65,7 @@ pub opaque type Server {
   )
 }
 
+/// Returns the user-provided port or the OS-assigned value if 0 was provided.
 pub fn get_port(server: Server) -> Result(Int, Nil) {
   case server.port {
     Provided(value) -> Ok(value)
@@ -74,6 +77,7 @@ pub fn get_port(server: Server) -> Result(Int, Nil) {
   }
 }
 
+/// Gets the underlying supervisor `Subject` from the `Server`.
 pub fn get_supervisor(server: Server) -> Subject(supervisor.Message) {
   server.supervisor
 }
@@ -88,6 +92,9 @@ pub type Connection(user_message) {
   )
 }
 
+/// Attempts to read the IP address and port of a connected client.  It will
+/// return valid IPv4 or IPv6 addresses, attempting to return the most relevant
+/// one for the client.
 pub fn get_client_info(
   conn: Connection(user_message),
 ) -> Result(#(IpAddress, Int), Nil) {
