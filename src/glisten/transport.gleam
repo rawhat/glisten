@@ -221,5 +221,14 @@ pub fn set_buffer_size(transport: Transport, socket: Socket) -> Result(Nil, Nil)
   })
 }
 
-@external(erlang, "inet", "port")
-pub fn port(socket: ListenSocket) -> Result(Int, unknown)
+pub fn port(transport: Transport, socket: ListenSocket) -> Result(Int, Nil) {
+  case transport {
+    Tcp -> tcp.port(socket)
+    Ssl ->
+      ssl.sockname(socket)
+      |> result.map(fn(pair) {
+        let #(_ip, port) = pair
+        port
+      })
+  }
+}

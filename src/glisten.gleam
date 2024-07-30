@@ -59,9 +59,10 @@ type ServerPort {
 /// information.
 pub opaque type Server {
   Server(
-    supervisor: Subject(supervisor.Message),
     port: ServerPort,
     socket: ListenSocket,
+    supervisor: Subject(supervisor.Message),
+    transport: Transport,
   )
 }
 
@@ -69,11 +70,7 @@ pub opaque type Server {
 pub fn get_port(server: Server) -> Result(Int, Nil) {
   case server.port {
     Provided(value) -> Ok(value)
-    Assigned -> {
-      server.socket
-      |> transport.port
-      |> result.nil_error
-    }
+    Assigned -> transport.port(server.transport, server.socket)
   }
 }
 
@@ -289,6 +286,7 @@ pub fn start_server(
         },
         supervisor: pool,
         socket: socket,
+        transport: transport.Tcp,
       )
     })
   })
@@ -342,6 +340,7 @@ pub fn start_ssl_server(
         },
         supervisor: pool,
         socket: socket,
+        transport: transport.Ssl,
       )
     })
   })
