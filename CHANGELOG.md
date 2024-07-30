@@ -1,3 +1,14 @@
+# v4.0.0
+
+- Partially revert the `serve`/`serve_ssl` change noted below.  These functions
+  are now available at `start_server` and `start_ssl_server` since they add some
+  boilerplate for accessing the underlying supervisor.
+- Update the mechanism for accessing the client IP and port.  Previously, this
+  was provided as a 4-tuple on the connection.  However, this value could be an
+  IPv6, or an IPv4-mapped IPv6 value.  Also, to avoid the overhead of doing this
+  every time, a `get_client_info` function has been added to get this
+  information on demand.
+
 # v3.0.0
 
 - Set `buffer` on socket based on `recvbuf` per erlang documentation
