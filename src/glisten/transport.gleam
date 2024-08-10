@@ -175,6 +175,10 @@ fn decode_ipv6() -> Decoder(IpAddress) {
   }
 }
 
+pub fn decode_ip() -> Decoder(IpAddress) {
+  dynamic.any([decode_ipv6(), decode_ipv4()])
+}
+
 pub fn peername(
   transport: Transport,
   socket: Socket,
@@ -185,7 +189,7 @@ pub fn peername(
   }
   |> result.then(fn(pair) {
     let #(ip_address, port) = pair
-    dynamic.any([decode_ipv6(), decode_ipv4()])(ip_address)
+    decode_ip()(ip_address)
     |> result.map(fn(ip) { #(ip, port) })
     |> result.nil_error
   })
@@ -221,17 +225,18 @@ pub fn set_buffer_size(transport: Transport, socket: Socket) -> Result(Nil, Nil)
   })
 }
 
-pub fn port(
+pub fn sockname(
   transport: Transport,
   socket: ListenSocket,
-) -> Result(Int, SocketReason) {
+) -> Result(#(IpAddress, Int), SocketReason) {
   case transport {
-    Tcp -> tcp.port(socket)
-    Ssl ->
-      ssl.sockname(socket)
-      |> result.map(fn(pair) {
-        let #(_ip, port) = pair
-        port
-      })
+    Tcp -> tcp.sockname(socket)
+    Ssl -> ssl.sockname(socket)
   }
+  |> result.then(fn(pair) {
+    let #(maybe_ip, port) = pair
+    decode_ip()(maybe_ip)
+    |> result.map(fn(ip) { #(ip, port) })
+    |> result.replace_error(socket.Badarg)
+  })
 }

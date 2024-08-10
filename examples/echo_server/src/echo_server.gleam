@@ -24,13 +24,13 @@ pub fn main() {
 
   let assert Ok(server) =
     glisten.handler(fn(_conn) { #(Nil, None) }, fn(msg, state, conn) {
-      let assert Ok(#(ip, port)) = glisten.get_client_info(conn)
+      let assert Ok(info) = glisten.get_client_info(conn)
       logging.log(
         logging.Info,
         "Client connected at "
-          <> string.inspect(ip)
+          <> string.inspect(info.ip_address)
           <> " at port "
-          <> int.to_string(port),
+          <> int.to_string(info.port),
       )
       let assert Packet(msg) = msg
       let assert Ok(_) = glisten.send(conn, bytes_builder.from_bit_array(msg))
@@ -38,9 +38,9 @@ pub fn main() {
     })
     |> glisten.start_server(0)
 
-  let assert Ok(port) = glisten.get_port(server, 1000)
+  let assert Ok(info) = glisten.get_server_info(server, 5000)
 
-  io.println("Listening on port: " <> int.to_string(port))
+  io.println("Listening on port: " <> int.to_string(info.port))
 
   process.sleep_forever()
 }

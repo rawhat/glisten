@@ -90,5 +90,5 @@ pub fn get_socket_opts(
   opts: List(Atom),
 ) -> Result(List(#(Atom, Dynamic)), Nil)
 
-@external(erlang, "inet", "port")
-pub fn port(socket: ListenSocket) -> Result(Int, SocketReason)
+@external(erlang, "inet", "sockname")
+pub fn sockname(socket: ListenSocket) -> Result(#(Dynamic, Int), SocketReason)

@@ -59,13 +59,19 @@ pub opaque type Server {
   )
 }
 
+pub type ConnectionInfo {
+  ConnectionInfo(port: Int, ip_address: IpAddress)
+}
+
 /// Returns the user-provided port or the OS-assigned value if 0 was provided.
-pub fn get_port(
+pub fn get_server_info(
   server: Server,
   timeout: Int,
-) -> Result(Int, process.CallError(listener.State)) {
-  process.try_call(server.listener, fn(subj) { listener.Info(subj) }, timeout)
-  |> result.map(fn(state) { state.port })
+) -> Result(ConnectionInfo, process.CallError(listener.State)) {
+  process.try_call(server.listener, listener.Info, timeout)
+  |> result.map(fn(state) {
+    ConnectionInfo(state.port, convert_ip_address(state.ip_address))
+  })
 }
 
 /// Gets the underlying supervisor `Subject` from the `Server`.
@@ -83,22 +89,22 @@ pub type Connection(user_message) {
   )
 }
 
+@internal
+pub fn convert_ip_address(ip: transport.IpAddress) -> IpAddress {
+  case ip {
+    transport.IpV4(a, b, c, d) -> IpV4(a, b, c, d)
+    transport.IpV6(a, b, c, d, e, f, g, h) -> IpV6(a, b, c, d, e, f, g, h)
+  }
+}
+
 /// Tries to read the IP address and port of a connected client.  It will
 /// return valid IPv4 or IPv6 addresses, attempting to return the most relevant
 /// one for the client.
 pub fn get_client_info(
   conn: Connection(user_message),
-) -> Result(#(IpAddress, Int), Nil) {
+) -> Result(ConnectionInfo, Nil) {
   transport.peername(conn.transport, conn.socket)
-  |> result.map(fn(pair) {
-    case pair {
-      #(transport.IpV4(a, b, c, d), port) -> #(IpV4(a, b, c, d), port)
-      #(transport.IpV6(a, b, c, d, e, f, g, h), port) -> #(
-        IpV6(a, b, c, d, e, f, g, h),
-        port,
-      )
-    }
-  })
+  |> result.map(fn(pair) { ConnectionInfo(pair.1, convert_ip_address(pair.0)) })
 }
 
 /// Sends a BytesBuilder message over the socket using the active transport
