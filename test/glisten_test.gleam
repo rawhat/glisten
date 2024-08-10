@@ -24,9 +24,9 @@ pub fn it_echoes_messages_test() {
   let _server =
     process.start(
       fn() {
-        let Nil = process.send(client_subject, Connected)
         let assert Ok(listener) =
-          tcp.listen(9999, [options.ActiveMode(options.Passive)])
+          tcp.listen(54_321, [options.ActiveMode(options.Passive)])
+        let Nil = process.send(client_subject, Connected)
         let assert Ok(socket) = tcp.accept(listener)
         let loop = fn() {
           let assert Ok(msg) = tcp.receive_timeout(socket, 0, 200)
@@ -39,7 +39,7 @@ pub fn it_echoes_messages_test() {
 
   let assert Ok(Connected) = process.receive(client_subject, 200)
 
-  let client = tcp_client.connect(9999)
+  let client = tcp_client.connect(54_321)
   let assert Ok(_) =
     tcp.send(client, bytes_builder.from_bit_array(<<"hi mom":utf8>>))
   let assert Ok(Response(resp)) = process.receive(client_subject, 200)
@@ -49,7 +49,7 @@ pub fn it_echoes_messages_test() {
 
 pub fn it_accepts_from_the_pool_test() {
   let client_sender = process.new_subject()
-  let assert Ok(_subj) =
+  let assert Ok(_server) =
     glisten.handler(fn(_conn) { #(Nil, None) }, fn(msg, state, conn) {
       let assert Packet(msg) = msg
       let assert Ok(_) =
@@ -57,7 +57,7 @@ pub fn it_accepts_from_the_pool_test() {
       actor.continue(state)
     })
     |> glisten.with_pool_size(1)
-    |> glisten.serve(9998)
+    |> glisten.serve(54_321)
 
   let _client_process =
     process.start(
@@ -67,7 +67,7 @@ pub fn it_accepts_from_the_pool_test() {
             process.new_selector(),
             dynamic.tuple3(dynamic.dynamic, dynamic.dynamic, dynamic.bit_array),
           )
-        let client = tcp_client.connect(9998)
+        let client = tcp_client.connect(54_321)
         let assert Ok(_) =
           tcp.send(client, bytes_builder.from_bit_array(<<"hi mom":utf8>>))
         let msg = process.select(client_selector, 200)

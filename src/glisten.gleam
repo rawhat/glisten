@@ -8,13 +8,12 @@ import gleam/otp/supervisor
 import gleam/result
 import glisten/internal/acceptor.{Pool}
 import glisten/internal/handler
+import glisten/internal/listener
 import glisten/socket.{
-  type ListenSocket, type Socket as InternalSocket,
-  type SocketReason as InternalSocketReason, Closed, Timeout,
+  type Socket as InternalSocket, type SocketReason as InternalSocketReason,
 }
 import glisten/socket/options.{Certfile, Keyfile}
 import glisten/ssl
-import glisten/tcp
 import glisten/transport.{type Transport}
 
 /// Reasons that `serve` might fail
@@ -48,30 +47,25 @@ pub type Socket =
 pub type SocketReason =
   InternalSocketReason
 
-type ServerPort {
-  Provided(Int)
-  Assigned
-}
-
 /// This holds information about the server.  Returned by the `start_server` /
 /// `start_ssl_server` methods, it will allow you to get access to an
 /// OS-assigned port. Eventually, it will be used for graceful shutdown, and
 /// potentially other information.
 pub opaque type Server {
   Server(
-    port: ServerPort,
-    socket: ListenSocket,
+    listener: Subject(listener.Message),
     supervisor: Subject(supervisor.Message),
     transport: Transport,
   )
 }
 
 /// Returns the user-provided port or the OS-assigned value if 0 was provided.
-pub fn get_port(server: Server) -> Result(Int, Nil) {
-  case server.port {
-    Provided(value) -> Ok(value)
-    Assigned -> transport.port(server.transport, server.socket)
-  }
+pub fn get_port(
+  server: Server,
+  timeout: Int,
+) -> Result(Int, process.CallError(listener.State)) {
+  process.try_call(server.listener, fn(subj) { listener.Info(subj) }, timeout)
+  |> result.map(fn(state) { state.port })
 }
 
 /// Gets the underlying supervisor `Subject` from the `Server`.
@@ -253,42 +247,33 @@ pub fn start_server(
   handler: Handler(user_message, data),
   port: Int,
 ) -> Result(Server, StartError) {
-  tcp.listen(port, [])
+  let return = process.new_subject()
+
+  let selector =
+    process.new_selector()
+    |> process.selecting(return, fn(subj) { subj })
+
+  Pool(
+    handler: convert_loop(handler.loop),
+    pool_count: handler.pool_size,
+    on_init: convert_on_init(handler.on_init),
+    on_close: handler.on_close,
+    transport: transport.Tcp,
+  )
+  |> acceptor.start_pool(transport.Tcp, port, [], return)
   |> result.map_error(fn(err) {
     case err {
-      Closed -> ListenerClosed
-      Timeout -> ListenerTimeout
-      err -> SystemError(err)
+      actor.InitTimeout -> AcceptorTimeout
+      actor.InitFailed(reason) -> AcceptorFailed(reason)
+      actor.InitCrashed(reason) -> AcceptorCrashed(reason)
     }
   })
-  |> result.then(fn(socket) {
-    Pool(
-      listener_socket: socket,
-      handler: convert_loop(handler.loop),
-      pool_count: handler.pool_size,
-      on_init: convert_on_init(handler.on_init),
-      on_close: handler.on_close,
-      transport: transport.Tcp,
-    )
-    |> acceptor.start_pool
-    |> result.map_error(fn(err) {
-      case err {
-        actor.InitTimeout -> AcceptorTimeout
-        actor.InitFailed(reason) -> AcceptorFailed(reason)
-        actor.InitCrashed(reason) -> AcceptorCrashed(reason)
-      }
+  |> result.then(fn(pool) {
+    process.select(selector, 1500)
+    |> result.map(fn(listener) {
+      Server(listener: listener, supervisor: pool, transport: transport.Tcp)
     })
-    |> result.map(fn(pool) {
-      Server(
-        port: case port {
-          0 -> Assigned
-          val -> Provided(val)
-        },
-        supervisor: pool,
-        socket: socket,
-        transport: transport.Tcp,
-      )
-    })
+    |> result.replace_error(AcceptorTimeout)
   })
 }
 
@@ -307,41 +292,38 @@ pub fn start_ssl_server(
     True -> [options.AlpnPreferredProtocols(["h2", "http/1.1"])]
     False -> [options.AlpnPreferredProtocols(["http/1.1"])]
   }
-  ssl.listen(port, list.concat([ssl_options, protocol_options]))
+
+  let return = process.new_subject()
+
+  let selector =
+    process.new_selector()
+    |> process.selecting(return, fn(subj) { subj })
+
+  Pool(
+    handler: convert_loop(handler.loop),
+    pool_count: handler.pool_size,
+    on_init: convert_on_init(handler.on_init),
+    on_close: handler.on_close,
+    transport: transport.Ssl,
+  )
+  |> acceptor.start_pool(
+    transport.Ssl,
+    port,
+    list.concat([ssl_options, protocol_options]),
+    return,
+  )
   |> result.map_error(fn(err) {
     case err {
-      Closed -> ListenerClosed
-      Timeout -> ListenerTimeout
-      err -> SystemError(err)
+      actor.InitTimeout -> AcceptorTimeout
+      actor.InitFailed(reason) -> AcceptorFailed(reason)
+      actor.InitCrashed(reason) -> AcceptorCrashed(reason)
     }
   })
-  |> result.then(fn(socket) {
-    Pool(
-      listener_socket: socket,
-      handler: convert_loop(handler.loop),
-      pool_count: handler.pool_size,
-      on_init: convert_on_init(handler.on_init),
-      on_close: handler.on_close,
-      transport: transport.Ssl,
-    )
-    |> acceptor.start_pool
-    |> result.map_error(fn(err) {
-      case err {
-        actor.InitTimeout -> AcceptorTimeout
-        actor.InitFailed(reason) -> AcceptorFailed(reason)
-        actor.InitCrashed(reason) -> AcceptorCrashed(reason)
-      }
+  |> result.then(fn(pool) {
+    process.select(selector, 1500)
+    |> result.map(fn(listener) {
+      Server(listener: listener, supervisor: pool, transport: transport.Tcp)
     })
-    |> result.map(fn(pool) {
-      Server(
-        port: case port {
-          0 -> Assigned
-          val -> Provided(val)
-        },
-        supervisor: pool,
-        socket: socket,
-        transport: transport.Ssl,
-      )
-    })
+    |> result.replace_error(AcceptorTimeout)
   })
 }

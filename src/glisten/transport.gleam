@@ -221,7 +221,10 @@ pub fn set_buffer_size(transport: Transport, socket: Socket) -> Result(Nil, Nil)
   })
 }
 
-pub fn port(transport: Transport, socket: ListenSocket) -> Result(Int, Nil) {
+pub fn port(
+  transport: Transport,
+  socket: ListenSocket,
+) -> Result(Int, SocketReason) {
   case transport {
     Tcp -> tcp.port(socket)
     Ssl ->

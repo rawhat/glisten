@@ -38,7 +38,7 @@ pub fn main() {
     })
     |> glisten.start_server(0)
 
-  let assert Ok(port) = glisten.get_port(server)
+  let assert Ok(port) = glisten.get_port(server, 1000)
 
   io.println("Listening on port: " <> int.to_string(port))
 

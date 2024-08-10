@@ -77,7 +77,9 @@ pub fn start(
     actor.Spec(
       init: fn() {
         let subject = process.new_subject()
-        let client_ip = transport.peername(handler.transport, handler.socket)
+        let client_ip =
+          transport.peername(handler.transport, handler.socket)
+          |> result.nil_error
         let connection =
           Connection(
             socket: handler.socket,
