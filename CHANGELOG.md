@@ -1,3 +1,9 @@
+# Unreleased
+
+- Move `transport.listen` method out of calling process into separate process
+managed by supervisor
+- Fix flaky test due to ordering
+
 # v4.0.0
 
 - Partially revert the `serve`/`serve_ssl` change noted below.  These functions
