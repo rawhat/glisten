@@ -3,6 +3,8 @@
 - Move `transport.listen` method out of calling process into separate process
 managed by supervisor
 - Fix flaky test due to ordering
+- Update connection info functions for getting IP and port (both client and
+server)
 
 # v4.0.0
 
