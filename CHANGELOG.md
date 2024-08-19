@@ -1,4 +1,4 @@
-# Unreleased
+# v5.0.0
 
 - Move `transport.listen` method out of calling process into separate process
 managed by supervisor
