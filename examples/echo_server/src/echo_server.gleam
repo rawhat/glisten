@@ -37,6 +37,7 @@ pub fn main() {
       actor.continue(state)
     })
     |> glisten.bind("localhost")
+    |> glisten.with_ipv6
     |> glisten.start_server(0)
 
   let assert Ok(info) = glisten.get_server_info(server, 5000)

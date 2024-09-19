@@ -100,6 +100,8 @@ pub fn convert_ip_address(ip: options.IpAddress) -> IpAddress {
   }
 }
 
+/// Convenience function for convert an `IpAddress` type into a string. It will
+/// convert the IPv6 loopback to the short-hand.
 pub fn ip_address_to_string(address: IpAddress) -> String {
   case address {
     IpV4(a, b, c, d) ->
@@ -246,6 +248,10 @@ pub fn with_http2(
   Handler(..handler, http2_support: True)
 }
 
+/// This sets the interface for `glisten` to listen on. It accepts the following
+/// strings:  "localhost", valid IPv4 addresses (i.e. "127.0.0.1"), and valid
+/// IPv6 addresses (i.e. "::1"). If an invalid value is provided, this will
+/// panic.
 pub fn bind(
   handler: Handler(user_message, data),
   interface: String,
@@ -260,6 +266,10 @@ pub fn bind(
   Handler(..handler, interface: address)
 }
 
+/// By default, `glisten` listens on `localhost` only over IPv4.  With an IPv4
+/// address, you can call this builder method to also serve over IPv6 on that
+/// interface.  If it is not supported, your application will crash.  If you
+/// call this with an IPv6 interface specified, it will have no effect.
 pub fn with_ipv6(
   handler: Handler(user_message, data),
 ) -> Handler(user_message, data) {
