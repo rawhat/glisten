@@ -1,3 +1,11 @@
+# v6.0.0
+
+- Support specifying the listening interface
+- Stop listening on IPv6 by default, instead preferring a builder function to
+enable it
+- Some tweaks to the shape of the `glisten/socket/options` module values
+- Moved the `IpAddress` type to the `glisten/socket/options` module
+
 # v5.0.0
 
 - Move `transport.listen` method out of calling process into separate process
