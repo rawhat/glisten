@@ -3,8 +3,8 @@ import gleam/otp/actor
 import gleam/result
 import gleam/string
 import glisten/socket.{type ListenSocket}
-import glisten/socket/options.{type TcpOption}
-import glisten/transport.{type IpAddress, type Transport}
+import glisten/socket/options.{type IpAddress, type TcpOption}
+import glisten/transport.{type Transport}
 
 pub type Message {
   Info(caller: Subject(State))

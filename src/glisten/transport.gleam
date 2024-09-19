@@ -136,14 +136,9 @@ pub fn negotiated_protocol(
   }
 }
 
-pub type IpAddress {
-  IpV4(Int, Int, Int, Int)
-  IpV6(Int, Int, Int, Int, Int, Int, Int, Int)
-}
-
-fn decode_ipv4() -> Decoder(IpAddress) {
+fn decode_ipv4() -> Decoder(options.IpAddress) {
   dynamic.decode4(
-    IpV4,
+    options.IpV4,
     dynamic.element(0, dynamic.int),
     dynamic.element(1, dynamic.int),
     dynamic.element(2, dynamic.int),
@@ -151,10 +146,10 @@ fn decode_ipv4() -> Decoder(IpAddress) {
   )
 }
 
-fn decode_ipv6() -> Decoder(IpAddress) {
+fn decode_ipv6() -> Decoder(options.IpAddress) {
   fn(dyn) {
     dynamic.decode8(
-      IpV6,
+      options.IpV6,
       dynamic.element(0, dynamic.int),
       dynamic.element(1, dynamic.int),
       dynamic.element(2, dynamic.int),
@@ -166,7 +161,7 @@ fn decode_ipv6() -> Decoder(IpAddress) {
     )(dyn)
     |> result.then(fn(ip) {
       case ip {
-        IpV6(0, 0, 0, 0, 0, 65_535, a, b) -> {
+        options.IpV6(0, 0, 0, 0, 0, 65_535, a, b) -> {
           decode_ipv4()(convert_address(#(0, 0, 0, 0, 0, 65_535, a, b)))
         }
         _ -> Ok(ip)
@@ -175,14 +170,14 @@ fn decode_ipv6() -> Decoder(IpAddress) {
   }
 }
 
-pub fn decode_ip() -> Decoder(IpAddress) {
+pub fn decode_ip() -> Decoder(options.IpAddress) {
   dynamic.any([decode_ipv6(), decode_ipv4()])
 }
 
 pub fn peername(
   transport: Transport,
   socket: Socket,
-) -> Result(#(IpAddress, Int), Nil) {
+) -> Result(#(options.IpAddress, Int), Nil) {
   case transport {
     Tcp -> tcp.peername(socket)
     Ssl -> ssl.peername(socket)
@@ -228,7 +223,7 @@ pub fn set_buffer_size(transport: Transport, socket: Socket) -> Result(Nil, Nil)
 pub fn sockname(
   transport: Transport,
   socket: ListenSocket,
-) -> Result(#(IpAddress, Int), SocketReason) {
+) -> Result(#(options.IpAddress, Int), SocketReason) {
   case transport {
     Tcp -> tcp.sockname(socket)
     Ssl -> ssl.sockname(socket)

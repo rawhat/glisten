@@ -16,6 +16,12 @@ pub type ActiveState {
   Active
 }
 
+pub type Interface {
+  Address(IpAddress)
+  Any
+  Loopback
+}
+
 /// Options for the TCP socket
 pub type TcpOption {
   Backlog(Int)
@@ -30,27 +36,32 @@ pub type TcpOption {
   Certfile(String)
   Keyfile(String)
   AlpnPreferredProtocols(List(String))
-  Inet6
+  Ipv6
   Buffer(Int)
+  Ip(Interface)
 }
 
 pub fn to_dict(options: List(TcpOption)) -> Dict(Dynamic, Dynamic) {
   let opt_decoder = dynamic.tuple2(dynamic.dynamic, dynamic.dynamic)
 
+  let active = atom.create_from_string("active")
+  let ip = atom.create_from_string("ip")
+
   options
   |> list.map(fn(opt) {
     case opt {
-      ActiveMode(Passive) ->
-        dynamic.from(#(atom.create_from_string("active"), False))
-      ActiveMode(Active) ->
-        dynamic.from(#(atom.create_from_string("active"), True))
-      ActiveMode(Count(n)) ->
-        dynamic.from(#(atom.create_from_string("active"), n))
+      ActiveMode(Passive) -> dynamic.from(#(active, False))
+      ActiveMode(Active) -> dynamic.from(#(active, True))
+      ActiveMode(Count(n)) -> dynamic.from(#(active, n))
       ActiveMode(Once) ->
-        dynamic.from(#(
-          atom.create_from_string("active"),
-          atom.create_from_string("once"),
-        ))
+        dynamic.from(#(active, atom.create_from_string("once")))
+      Ip(Address(IpV4(a, b, c, d))) ->
+        dynamic.from(#(ip, dynamic.from(#(a, b, c, d))))
+      Ip(Address(IpV6(a, b, c, d, e, f, g, h))) ->
+        dynamic.from(#(ip, dynamic.from(#(a, b, c, d, e, f, g, h))))
+      Ip(Any) -> dynamic.from(#(ip, atom.create_from_string("any")))
+      Ip(Loopback) -> dynamic.from(#(ip, atom.create_from_string("loopback")))
+      Ipv6 -> dynamic.from(atom.create_from_string("inet6"))
       other -> dynamic.from(other)
     }
   })
@@ -66,13 +77,26 @@ pub const default_options = [
 pub fn merge_with_defaults(options: List(TcpOption)) -> List(TcpOption) {
   let overrides = to_dict(options)
 
+  let has_ipv6 = list.contains(options, Ipv6)
+
   default_options
   |> to_dict
   |> dict.merge(overrides)
   |> dict.to_list
   |> list.map(dynamic.from)
-  |> add_inet6
+  |> fn(opts) {
+    case has_ipv6 {
+      True -> [dynamic.from(atom.create_from_string("inet6")), ..opts]
+      _ -> opts
+    }
+  }
+  |> unsafe_coerce
 }
 
-@external(erlang, "glisten_ffi", "add_inet6")
-fn add_inet6(options: List(Dynamic)) -> List(TcpOption)
+@external(erlang, "gleam@function", "identity")
+fn unsafe_coerce(value: a) -> b
+
+pub type IpAddress {
+  IpV4(Int, Int, Int, Int)
+  IpV6(Int, Int, Int, Int, Int, Int, Int, Int)
+}

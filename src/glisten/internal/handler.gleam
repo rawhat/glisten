@@ -8,8 +8,8 @@ import gleam/otp/actor
 import gleam/result
 import gleam/string
 import glisten/socket.{type Socket}
-import glisten/socket/options
-import glisten/transport.{type IpAddress, type Transport}
+import glisten/socket/options.{type IpAddress}
+import glisten/transport.{type Transport}
 import logging
 
 /// All message types that the handler will receive, or that you can

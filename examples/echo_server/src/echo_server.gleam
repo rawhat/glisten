@@ -36,11 +36,17 @@ pub fn main() {
       let assert Ok(_) = glisten.send(conn, bytes_builder.from_bit_array(msg))
       actor.continue(state)
     })
+    |> glisten.bind("localhost")
     |> glisten.start_server(0)
 
   let assert Ok(info) = glisten.get_server_info(server, 5000)
 
-  io.println("Listening on port: " <> int.to_string(info.port))
+  io.println(
+    "Listening on "
+    <> glisten.ip_address_to_string(info.ip_address)
+    <> " at port "
+    <> int.to_string(info.port),
+  )
 
   process.sleep_forever()
 }

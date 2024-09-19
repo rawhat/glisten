@@ -1,11 +1,14 @@
 import gleam/bytes_builder.{type BytesBuilder}
 import gleam/dynamic.{type Dynamic}
+import gleam/erlang/charlist.{type Charlist}
 import gleam/erlang/process.{type Selector, type Subject}
+import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/otp/actor
 import gleam/otp/supervisor
 import gleam/result
+import gleam/string
 import glisten/internal/acceptor.{Pool}
 import glisten/internal/handler
 import glisten/internal/listener
@@ -90,10 +93,24 @@ pub type Connection(user_message) {
 }
 
 @internal
-pub fn convert_ip_address(ip: transport.IpAddress) -> IpAddress {
+pub fn convert_ip_address(ip: options.IpAddress) -> IpAddress {
   case ip {
-    transport.IpV4(a, b, c, d) -> IpV4(a, b, c, d)
-    transport.IpV6(a, b, c, d, e, f, g, h) -> IpV6(a, b, c, d, e, f, g, h)
+    options.IpV4(a, b, c, d) -> IpV4(a, b, c, d)
+    options.IpV6(a, b, c, d, e, f, g, h) -> IpV6(a, b, c, d, e, f, g, h)
+  }
+}
+
+pub fn ip_address_to_string(address: IpAddress) -> String {
+  case address {
+    IpV4(a, b, c, d) ->
+      [a, b, c, d]
+      |> list.map(int.to_string)
+      |> string.join(".")
+    IpV6(0, 0, 0, 0, 0, 0, 0, 1) -> "::1"
+    IpV6(a, b, c, d, e, f, g, h) ->
+      [a, b, c, d, e, f, g, h]
+      |> list.map(int.to_string)
+      |> string.join("::")
   }
 }
 
@@ -123,12 +140,14 @@ pub type Loop(user_message, data) =
 
 pub opaque type Handler(user_message, data) {
   Handler(
+    interface: options.Interface,
     on_init: fn(Connection(user_message)) ->
       #(data, Option(Selector(user_message))),
     loop: Loop(user_message, data),
     on_close: Option(fn(data) -> Nil),
     pool_size: Int,
     http2_support: Bool,
+    ipv6_support: Bool,
   )
 }
 
@@ -192,11 +211,13 @@ pub fn handler(
   loop: Loop(user_message, data),
 ) -> Handler(user_message, data) {
   Handler(
+    interface: options.Loopback,
     on_init: on_init,
     loop: loop,
     on_close: None,
     pool_size: 10,
     http2_support: False,
+    ipv6_support: False,
   )
 }
 
@@ -223,6 +244,26 @@ pub fn with_http2(
   handler: Handler(user_message, data),
 ) -> Handler(user_message, data) {
   Handler(..handler, http2_support: True)
+}
+
+pub fn bind(
+  handler: Handler(user_message, data),
+  interface: String,
+) -> Handler(user_message, data) {
+  let address = case interface, parse_address(charlist.from_string(interface)) {
+    "0.0.0.0", _ -> options.Any
+    "localhost", _ | "127.0.0.1", _ -> options.Loopback
+    _, Ok(address) -> options.Address(address)
+    _, Error(_nil) ->
+      panic as "Invalid interface provided:  must be a valid IPv4/IPv6 address, or \"localhost\""
+  }
+  Handler(..handler, interface: address)
+}
+
+pub fn with_ipv6(
+  handler: Handler(user_message, data),
+) -> Handler(user_message, data) {
+  Handler(..handler, ipv6_support: True)
 }
 
 /// Start the TCP server with the given handler on the provided port
@@ -259,6 +300,11 @@ pub fn start_server(
     process.new_selector()
     |> process.selecting(return, fn(subj) { subj })
 
+  let options = case handler.ipv6_support {
+    True -> [options.Ip(handler.interface), options.Ipv6]
+    False -> [options.Ip(handler.interface)]
+  }
+
   Pool(
     handler: convert_loop(handler.loop),
     pool_count: handler.pool_size,
@@ -266,7 +312,7 @@ pub fn start_server(
     on_close: handler.on_close,
     transport: transport.Tcp,
   )
-  |> acceptor.start_pool(transport.Tcp, port, [], return)
+  |> acceptor.start_pool(transport.Tcp, port, options, return)
   |> result.map_error(fn(err) {
     case err {
       actor.InitTimeout -> AcceptorTimeout
@@ -293,7 +339,15 @@ pub fn start_ssl_server(
   keyfile keyfile: String,
 ) -> Result(Server, StartError) {
   let assert Ok(_nil) = ssl.start()
-  let ssl_options = [Certfile(certfile), Keyfile(keyfile)]
+  let base_options = [
+    options.Ip(handler.interface),
+    Certfile(certfile),
+    Keyfile(keyfile),
+  ]
+  let default_options = case handler.ipv6_support {
+    True -> [options.Ipv6, ..base_options]
+    False -> base_options
+  }
   let protocol_options = case handler.http2_support {
     True -> [options.AlpnPreferredProtocols(["h2", "http/1.1"])]
     False -> [options.AlpnPreferredProtocols(["http/1.1"])]
@@ -315,7 +369,7 @@ pub fn start_ssl_server(
   |> acceptor.start_pool(
     transport.Ssl,
     port,
-    list.concat([ssl_options, protocol_options]),
+    list.concat([default_options, protocol_options]),
     return,
   )
   |> result.map_error(fn(err) {
@@ -333,3 +387,6 @@ pub fn start_ssl_server(
     |> result.replace_error(AcceptorTimeout)
   })
 }
+
+@external(erlang, "glisten_ffi", "parse_address")
+fn parse_address(value: Charlist) -> Result(ip_address, Nil)
