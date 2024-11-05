@@ -101,18 +101,51 @@ pub fn convert_ip_address(ip: options.IpAddress) -> IpAddress {
 }
 
 /// Convenience function for convert an `IpAddress` type into a string. It will
-/// convert the IPv6 loopback to the short-hand.
+/// convert IPv6 addresses to the canonical short-hand (ie. loopback is ::1).
 pub fn ip_address_to_string(address: IpAddress) -> String {
   case address {
     IpV4(a, b, c, d) ->
       [a, b, c, d]
       |> list.map(int.to_string)
       |> string.join(".")
-    IpV6(0, 0, 0, 0, 0, 0, 0, 1) -> "::1"
-    IpV6(a, b, c, d, e, f, g, h) ->
-      [a, b, c, d, e, f, g, h]
-      |> list.map(int.to_string)
-      |> string.join("::")
+    IpV6(a, b, c, d, e, f, g, h) -> {
+      let fields = [a, b, c, d, e, f, g, h]
+      case ipv6_zeros(fields, 0, 0, 0, 0) {
+        Error(_) -> join_ipv6_fields(fields)
+        Ok(#(start, end)) ->
+          join_ipv6_fields(list.take(fields, start))
+          <> "::"
+          <> join_ipv6_fields(list.drop(fields, end))
+      }
+      |> string.lowercase
+    }
+  }
+}
+
+fn join_ipv6_fields(fields) {
+  list.map(fields, int.to_base16) |> string.join(":")
+}
+
+/// Finds the longest sequence of consecutive all-zero fields in an IPv6.
+/// If the address contains multiple runs of all-zero fields of the same size,
+/// it is the leftmost that is compressed.
+///
+/// This returns the start & end indices of the compressed zeros.
+fn ipv6_zeros(fields, pos, len, max_start, max_len) -> Result(#(Int, Int), Nil) {
+  case fields {
+    [] if max_len > 1 -> Ok(#(max_start, max_start + max_len))
+    [] -> Error(Nil)
+    [x, ..xs] if x == 0 -> {
+      let len = len + 1
+      case len > max_len {
+        // Biggest sequence yet
+        True -> ipv6_zeros(xs, pos + 1, len, pos + 1 - len, len)
+        // Continue to grow current sequence
+        False -> ipv6_zeros(xs, pos + 1, len, max_start, max_len)
+      }
+    }
+    // Continue to search for zeros
+    [_, ..xs] -> ipv6_zeros(xs, pos + 1, 0, max_start, max_len)
   }
 }
 
