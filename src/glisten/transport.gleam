@@ -1,4 +1,4 @@
-import gleam/bytes_builder.{type BytesBuilder}
+import gleam/bytes_tree.{type BytesTree}
 import gleam/dict.{type Dict}
 import gleam/dynamic.{type Decoder, type Dynamic}
 import gleam/erlang/atom.{type Atom}
@@ -90,7 +90,7 @@ pub fn receive(
 pub fn send(
   transport: Transport,
   socket: Socket,
-  data: BytesBuilder,
+  data: BytesTree,
 ) -> Result(Nil, SocketReason) {
   case transport {
     Tcp -> tcp.send(socket, data)
@@ -186,7 +186,7 @@ pub fn peername(
     let #(ip_address, port) = pair
     decode_ip()(ip_address)
     |> result.map(fn(ip) { #(ip, port) })
-    |> result.nil_error
+    |> result.replace_error(Nil)
   })
 }
 
@@ -211,7 +211,7 @@ pub fn set_buffer_size(transport: Transport, socket: Socket) -> Result(Nil, Nil)
   get_socket_opts(transport, socket, [atom.create_from_string("recbuf")])
   |> result.then(fn(p) {
     case p {
-      [#(_buffer, value)] -> result.nil_error(dynamic.int(value))
+      [#(_buffer, value)] -> result.replace_error(dynamic.int(value), Nil)
       _ -> Error(Nil)
     }
   })

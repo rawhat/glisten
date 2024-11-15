@@ -79,7 +79,7 @@ pub fn start(
         let subject = process.new_subject()
         let client_ip =
           transport.peername(handler.transport, handler.socket)
-          |> result.nil_error
+          |> result.replace_error(Nil)
         let connection =
           Connection(
             socket: handler.socket,

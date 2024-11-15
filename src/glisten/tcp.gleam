@@ -1,4 +1,4 @@
-import gleam/bytes_builder.{type BytesBuilder}
+import gleam/bytes_tree.{type BytesTree}
 import gleam/dict.{type Dict}
 import gleam/dynamic.{type Dynamic}
 import gleam/erlang/atom.{type Atom}
@@ -36,7 +36,7 @@ pub fn receive_timeout(
 pub fn receive(socket: Socket, length: Int) -> Result(BitArray, SocketReason)
 
 @external(erlang, "glisten_tcp_ffi", "send")
-pub fn send(socket: Socket, packet: BytesBuilder) -> Result(Nil, SocketReason)
+pub fn send(socket: Socket, packet: BytesTree) -> Result(Nil, SocketReason)
 
 @external(erlang, "socket", "info")
 pub fn socket_info(socket: Socket) -> Dict(a, b)

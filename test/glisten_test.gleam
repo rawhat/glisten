@@ -1,4 +1,4 @@
-import gleam/bytes_builder
+import gleam/bytes_tree
 import gleam/dynamic
 import gleam/erlang/process
 import gleam/option.{None}
@@ -41,7 +41,7 @@ pub fn it_echoes_messages_test() {
 
   let client = tcp_client.connect(54_321)
   let assert Ok(_) =
-    tcp.send(client, bytes_builder.from_bit_array(<<"hi mom":utf8>>))
+    tcp.send(client, bytes_tree.from_bit_array(<<"hi mom":utf8>>))
   let assert Ok(Response(resp)) = process.receive(client_subject, 200)
 
   should.equal(resp, <<"hi mom":utf8>>)
@@ -52,8 +52,7 @@ pub fn it_accepts_from_the_pool_test() {
   let assert Ok(_server) =
     glisten.handler(fn(_conn) { #(Nil, None) }, fn(msg, state, conn) {
       let assert Packet(msg) = msg
-      let assert Ok(_) =
-        tcp.send(conn.socket, bytes_builder.from_bit_array(msg))
+      let assert Ok(_) = tcp.send(conn.socket, bytes_tree.from_bit_array(msg))
       actor.continue(state)
     })
     |> glisten.with_pool_size(1)
@@ -69,7 +68,7 @@ pub fn it_accepts_from_the_pool_test() {
           )
         let client = tcp_client.connect(54_321)
         let assert Ok(_) =
-          tcp.send(client, bytes_builder.from_bit_array(<<"hi mom":utf8>>))
+          tcp.send(client, bytes_tree.from_bit_array(<<"hi mom":utf8>>))
         let msg = process.select(client_selector, 200)
         let assert Ok(Ok(#(_tcp, _port, msg))) = msg
         process.send(client_sender, msg)

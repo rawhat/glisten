@@ -1,4 +1,4 @@
-import gleam/bytes_builder.{type BytesBuilder}
+import gleam/bytes_tree.{type BytesTree}
 import gleam/dynamic.{type Dynamic}
 import gleam/erlang/charlist.{type Charlist}
 import gleam/erlang/process.{type Selector, type Subject}
@@ -129,7 +129,7 @@ pub fn get_client_info(
 /// Sends a BytesBuilder message over the socket using the active transport
 pub fn send(
   conn: Connection(user_message),
-  msg: BytesBuilder,
+  msg: BytesTree,
 ) -> Result(Nil, SocketReason) {
   transport.send(conn.transport, conn.socket, msg)
 }
@@ -379,7 +379,7 @@ pub fn start_ssl_server(
   |> acceptor.start_pool(
     transport.Ssl,
     port,
-    list.concat([default_options, protocol_options]),
+    list.flatten([default_options, protocol_options]),
     return,
   )
   |> result.map_error(fn(err) {
