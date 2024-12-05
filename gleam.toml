@@ -5,6 +5,9 @@ licences = ["Apache-2.0"]
 repository = { type = "github", user = "rawhat", repo = "glisten" }
 gleam = ">= 1.1.0"
 
+[erlang]
+extra_applications = ["ssl"]
+
 [dependencies]
 gleam_stdlib = ">= 0.39.0 and < 1.0.0"
 gleam_otp = ">= 0.10.0 and < 1.0.0"

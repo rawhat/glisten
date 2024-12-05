@@ -86,9 +86,6 @@ pub fn peername(socket: Socket) -> Result(#(Dynamic, Int), Nil)
 @external(erlang, "ssl", "sockname")
 pub fn sockname(socket: ListenSocket) -> Result(#(Dynamic, Int), SocketReason)
 
-@external(erlang, "glisten_ssl_ffi", "start_ssl")
-pub fn start() -> Result(Nil, Dynamic)
-
 @external(erlang, "ssl", "getopts")
 pub fn get_socket_opts(
   socket: Socket,

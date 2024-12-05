@@ -16,7 +16,6 @@ import glisten/socket.{
   type Socket as InternalSocket, type SocketReason as InternalSocketReason,
 }
 import glisten/socket/options.{Certfile, Keyfile}
-import glisten/ssl
 import glisten/transport.{type Transport}
 
 /// Reasons that `serve` might fail
@@ -348,7 +347,6 @@ pub fn start_ssl_server(
   certfile certfile: String,
   keyfile keyfile: String,
 ) -> Result(Server, StartError) {
-  let assert Ok(_nil) = ssl.start()
   let base_options = [
     options.Ip(handler.interface),
     Certfile(certfile),

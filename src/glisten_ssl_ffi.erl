@@ -1,6 +1,6 @@
 -module(glisten_ssl_ffi).
 
--export([controlling_process/2, send/2, set_opts/2, start_ssl/0, shutdown/2, close/1,
+-export([controlling_process/2, send/2, set_opts/2, shutdown/2, close/1,
          negotiated_protocol/1]).
 
 send(Socket, Packet) ->
@@ -22,14 +22,6 @@ set_opts(Socket, Options) ->
 controlling_process(Socket, Pid) ->
   case ssl:controlling_process(Socket, Pid) of
     ok ->
-      {ok, nil};
-    {error, Reason} ->
-      {error, Reason}
-  end.
-
-start_ssl() ->
-  case application:ensure_all_started(ssl) of
-    {ok, _} ->
       {ok, nil};
     {error, Reason} ->
       {error, Reason}
