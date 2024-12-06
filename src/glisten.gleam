@@ -125,7 +125,7 @@ pub fn get_client_info(
   |> result.map(fn(pair) { ConnectionInfo(pair.1, convert_ip_address(pair.0)) })
 }
 
-/// Sends a BytesBuilder message over the socket using the active transport
+/// Sends a BytesTree message over the socket using the active transport
 pub fn send(
   conn: Connection(user_message),
   msg: BytesTree,
