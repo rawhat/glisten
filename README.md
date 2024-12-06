@@ -33,6 +33,10 @@ pub fn main() {
       let assert Ok(_) = glisten.send(conn, bytes_builder.from_bit_array(msg))
       actor.continue(state)
     })
+    // NOTE:  By default, `glisten` will listen on the loopback interface.  If
+    // you want to listen on all interfaces, pass the following.  You can also
+    // specify other interface values, including IPv6 addresses.
+    // |> glisten.bind("0.0.0.0")
     |> glisten.serve(3000)
 
   process.sleep_forever()
