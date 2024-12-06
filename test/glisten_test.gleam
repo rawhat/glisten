@@ -1,11 +1,12 @@
 import gleam/bytes_tree
 import gleam/dynamic
 import gleam/erlang/process
+import gleam/list
 import gleam/option.{None}
 import gleam/otp/actor
 import gleeunit
 import gleeunit/should
-import glisten.{Packet}
+import glisten.{IpV6, Packet}
 import glisten/socket/options
 import glisten/tcp
 import tcp_client
@@ -79,4 +80,18 @@ pub fn it_accepts_from_the_pool_test() {
   let assert Ok(msg) = process.receive(client_sender, 200)
 
   should.equal(msg, <<"hi mom":utf8>>)
+}
+
+pub fn ip_address_to_string_test() {
+  use #(ip, expected) <- list.each([
+    #(IpV6(0, 0, 0, 0, 0, 0, 0, 1), "::1"),
+    #(IpV6(0, 0, 0, 0, 0, 0, 0, 0), "::"),
+    #(IpV6(0x2001, 0xdb8, 0, 0, 1, 0, 0, 0), "2001:db8:0:0:1::"),
+    #(IpV6(0x2001, 0xdb8, 1, 1, 1, 1, 0, 1), "2001:db8:1:1:1:1:0:1"),
+    #(IpV6(0x2001, 0xdb8, 0, 0, 1, 0, 0, 1), "2001:db8::1:0:0:1"),
+    #(IpV6(0x2001, 0xdb8, 0, 0, 0, 0, 2, 1), "2001:db8::2:1"),
+  ])
+
+  glisten.ip_address_to_string(ip)
+  |> should.equal(expected)
 }
