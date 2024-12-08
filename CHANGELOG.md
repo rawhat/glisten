@@ -1,3 +1,9 @@
+# Unreleased
+
+- Require `stdlib` >= 0.44
+- Properly include `ssl` in the application tree
+- Fix IPv6 formatting when converting to string
+
 # v6.0.0
 
 - Support specifying the listening interface
