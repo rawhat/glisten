@@ -1,9 +1,9 @@
 name = "glisten"
-version = "6.0.0"
+version = "7.0.0"
 description = "a shiny Gleam TCP/SSL server"
 licences = ["Apache-2.0"]
 repository = { type = "github", user = "rawhat", repo = "glisten" }
-gleam = ">= 1.1.0"
+gleam = ">= 1.4.0"
 
 [erlang]
 extra_applications = ["ssl"]

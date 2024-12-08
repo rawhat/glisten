@@ -1,4 +1,4 @@
-# Unreleased
+# v7.0.0
 
 - Require `stdlib` >= 0.44
 - Properly include `ssl` in the application tree
