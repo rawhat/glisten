@@ -1,4 +1,4 @@
-import gleam/bytes_builder
+import gleam/bytes_tree
 import gleam/dict.{type Dict}
 import gleam/erlang/atom.{type Atom}
 import gleam/erlang/process
@@ -33,7 +33,7 @@ pub fn main() {
           <> int.to_string(info.port),
       )
       let assert Packet(msg) = msg
-      let assert Ok(_) = glisten.send(conn, bytes_builder.from_bit_array(msg))
+      let assert Ok(_) = glisten.send(conn, bytes_tree.from_bit_array(msg))
       actor.continue(state)
     })
     |> glisten.bind("localhost")
