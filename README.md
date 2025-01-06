@@ -20,7 +20,7 @@ $ gleam add glisten gleam_erlang gleam_otp
 Then place this code in `src/<your_project>.gleam`:
 
 ```gleam
-import gleam/bytes_builder
+import gleam/bytes_tree
 import gleam/erlang/process
 import gleam/option.{None}
 import gleam/otp/actor
@@ -30,7 +30,7 @@ pub fn main() {
   let assert Ok(_) =
     glisten.handler(fn(_conn) { #(Nil, None) }, fn(msg, state, conn) {
       let assert Packet(msg) = msg
-      let assert Ok(_) = glisten.send(conn, bytes_builder.from_bit_array(msg))
+      let assert Ok(_) = glisten.send(conn, bytes_tree.from_bit_array(msg))
       actor.continue(state)
     })
     // NOTE:  By default, `glisten` will listen on the loopback interface.  If
