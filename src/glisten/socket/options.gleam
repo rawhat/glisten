@@ -1,5 +1,6 @@
 import gleam/dict.{type Dict}
 import gleam/dynamic.{type Dynamic}
+import gleam/dynamic/decode
 import gleam/erlang/atom
 import gleam/list
 
@@ -42,7 +43,11 @@ pub type TcpOption {
 }
 
 pub fn to_dict(options: List(TcpOption)) -> Dict(Dynamic, Dynamic) {
-  let opt_decoder = dynamic.tuple2(dynamic.dynamic, dynamic.dynamic)
+  let opt_decoder = {
+    use opt <- decode.field(0, decode.dynamic)
+    use value <- decode.field(1, decode.dynamic)
+    decode.success(#(opt, value))
+  }
 
   let active = atom.create_from_string("active")
   let ip = atom.create_from_string("ip")
@@ -65,13 +70,18 @@ pub fn to_dict(options: List(TcpOption)) -> Dict(Dynamic, Dynamic) {
       other -> dynamic.from(other)
     }
   })
-  |> list.filter_map(opt_decoder)
+  |> list.filter_map(decode.run(_, opt_decoder))
   |> dict.from_list
 }
 
 pub const default_options = [
-  Backlog(1024), Nodelay(True), SendTimeout(30_000), SendTimeoutClose(True),
-  Reuseaddr(True), Mode(Binary), ActiveMode(Passive),
+  Backlog(1024),
+  Nodelay(True),
+  SendTimeout(30_000),
+  SendTimeoutClose(True),
+  Reuseaddr(True),
+  Mode(Binary),
+  ActiveMode(Passive),
 ]
 
 pub fn merge_with_defaults(options: List(TcpOption)) -> List(TcpOption) {

@@ -1,6 +1,7 @@
 import gleam/bytes_tree.{type BytesTree}
 import gleam/dict.{type Dict}
-import gleam/dynamic.{type Decoder, type Dynamic}
+import gleam/dynamic.{type Dynamic}
+import gleam/dynamic/decode.{type Decoder}
 import gleam/erlang/atom.{type Atom}
 import gleam/erlang/process.{type Pid}
 import gleam/result
@@ -137,41 +138,35 @@ pub fn negotiated_protocol(
 }
 
 fn decode_ipv4() -> Decoder(options.IpAddress) {
-  dynamic.decode4(
-    options.IpV4,
-    dynamic.element(0, dynamic.int),
-    dynamic.element(1, dynamic.int),
-    dynamic.element(2, dynamic.int),
-    dynamic.element(3, dynamic.int),
-  )
+  use a <- decode.field(0, decode.int)
+  use b <- decode.field(1, decode.int)
+  use c <- decode.field(2, decode.int)
+  use d <- decode.field(3, decode.int)
+  decode.success(options.IpV4(a, b, c, d))
 }
 
 fn decode_ipv6() -> Decoder(options.IpAddress) {
-  fn(dyn) {
-    dynamic.decode8(
-      options.IpV6,
-      dynamic.element(0, dynamic.int),
-      dynamic.element(1, dynamic.int),
-      dynamic.element(2, dynamic.int),
-      dynamic.element(3, dynamic.int),
-      dynamic.element(4, dynamic.int),
-      dynamic.element(5, dynamic.int),
-      dynamic.element(6, dynamic.int),
-      dynamic.element(7, dynamic.int),
-    )(dyn)
-    |> result.then(fn(ip) {
-      case ip {
-        options.IpV6(0, 0, 0, 0, 0, 65_535, a, b) -> {
-          decode_ipv4()(convert_address(#(0, 0, 0, 0, 0, 65_535, a, b)))
-        }
-        _ -> Ok(ip)
-      }
-    })
+  use a <- decode.field(0, decode.int)
+  use b <- decode.field(1, decode.int)
+  use c <- decode.field(2, decode.int)
+  use d <- decode.field(3, decode.int)
+  use e <- decode.field(4, decode.int)
+  use f <- decode.field(5, decode.int)
+  use g <- decode.field(6, decode.int)
+  use h <- decode.field(7, decode.int)
+  case a, b, c, d, e, f, g, h {
+    0, 0, 0, 0, 0, 65_535, a, b -> {
+      let #(a, b, c, d) = convert_address(#(a, b, c, d, e, f, g, h))
+      decode.success(options.IpV4(a, b, c, d))
+    }
+    _, _, _, _, _, _, _, _ -> {
+      decode.success(options.IpV6(a, b, c, d, e, f, g, h))
+    }
   }
 }
 
 pub fn decode_ip() -> Decoder(options.IpAddress) {
-  dynamic.any([decode_ipv6(), decode_ipv4()])
+  decode.one_of(decode_ipv6(), or: [decode_ipv4()])
 }
 
 pub fn peername(
@@ -184,14 +179,14 @@ pub fn peername(
   }
   |> result.then(fn(pair) {
     let #(ip_address, port) = pair
-    decode_ip()(ip_address)
+    decode.run(ip_address, decode_ip())
     |> result.map(fn(ip) { #(ip, port) })
     |> result.replace_error(Nil)
   })
 }
 
 @external(erlang, "inet", "ipv4_mapped_ipv6_address")
-fn convert_address(address: address) -> Dynamic
+fn convert_address(address: address) -> #(Int, Int, Int, Int)
 
 @external(erlang, "socket", "info")
 pub fn socket_info(socket: Socket) -> Dict(Atom, Dynamic)
@@ -211,7 +206,10 @@ pub fn set_buffer_size(transport: Transport, socket: Socket) -> Result(Nil, Nil)
   get_socket_opts(transport, socket, [atom.create_from_string("recbuf")])
   |> result.then(fn(p) {
     case p {
-      [#(_buffer, value)] -> result.replace_error(dynamic.int(value), Nil)
+      [#(_buffer, value)] ->
+        value
+        |> decode.run(decode.int)
+        |> result.replace_error(Nil)
       _ -> Error(Nil)
     }
   })
@@ -230,7 +228,8 @@ pub fn sockname(
   }
   |> result.then(fn(pair) {
     let #(maybe_ip, port) = pair
-    decode_ip()(maybe_ip)
+    maybe_ip
+    |> decode.run(decode_ip())
     |> result.map(fn(ip) { #(ip, port) })
     |> result.replace_error(socket.Badarg)
   })

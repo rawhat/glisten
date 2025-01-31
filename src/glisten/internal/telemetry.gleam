@@ -1,5 +1,6 @@
 import gleam/dict.{type Dict}
 import gleam/dynamic.{type Dynamic}
+import gleam/dynamic/decode
 import gleam/erlang/atom.{type Atom}
 import gleam/int
 import gleam/result
@@ -47,7 +48,11 @@ pub fn log(
 ) -> Nil {
   let duration_string =
     dict.get(measurements, atom.create_from_string("duration"))
-    |> result.then(fn(val) { result.replace_error(dynamic.int(val), Nil) })
+    |> result.then(fn(val) {
+      val
+      |> decode.run(decode.int)
+      |> result.replace_error(Nil)
+    })
     |> result.map(convert_time_unit(_, Native, Microsecond))
     |> result.map(fn(time) { " duration: " <> int.to_string(time) <> "μs, " })
     |> result.unwrap("")
@@ -117,7 +122,8 @@ pub fn attach(
 ) -> Nil
 
 pub const events = [
-  [Glisten, Handshake, Stop], [Glisten, HandlerLoop, Stop],
+  [Glisten, Handshake, Stop],
+  [Glisten, HandlerLoop, Stop],
   [Glisten, Acceptor, HandlerStart, Stop],
 ]
 

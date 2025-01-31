@@ -145,16 +145,12 @@ pub fn start_pool(
         })
           |> supervisor.returning(fn(_prev, listener) { listener }),
       )
-      |> list.fold(
-        acceptors,
-        _,
-        fn(children, _index) {
-          supervisor.add(
-            children,
-            supervisor.worker(fn(listener) { start(pool, listener) }),
-          )
-        },
-      )
+      |> list.fold(acceptors, _, fn(children, _index) {
+        supervisor.add(
+          children,
+          supervisor.worker(fn(listener) { start(pool, listener) }),
+        )
+      })
     },
   ))
 }

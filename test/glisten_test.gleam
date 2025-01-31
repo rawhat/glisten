@@ -1,5 +1,5 @@
 import gleam/bytes_tree
-import gleam/dynamic
+import gleam/dynamic/decode
 import gleam/erlang/process
 import gleam/list
 import gleam/option.{None}
@@ -65,7 +65,12 @@ pub fn it_accepts_from_the_pool_test() {
         let client_selector =
           process.selecting_anything(
             process.new_selector(),
-            dynamic.tuple3(dynamic.dynamic, dynamic.dynamic, dynamic.bit_array),
+            decode.run(_, {
+              use tcp <- decode.field(0, decode.dynamic)
+              use port <- decode.field(1, decode.dynamic)
+              use msg <- decode.field(2, decode.bit_array)
+              decode.success(#(tcp, port, msg))
+            }),
           )
         let client = tcp_client.connect(54_321)
         let assert Ok(_) =
