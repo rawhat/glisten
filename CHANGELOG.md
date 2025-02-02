@@ -1,3 +1,7 @@
+# v7.0.1
+
+- Migrate to `gleam/dynamic/decode` API
+
 # v7.0.0
 
 - Require `stdlib` >= 0.44
