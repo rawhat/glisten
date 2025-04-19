@@ -1,3 +1,7 @@
+# Unreleased
+
+- Require `stdlib` >= 0.50
+
 # v7.0.1
 
 - Migrate to `gleam/dynamic/decode` API
