@@ -1,12 +1,11 @@
 import gleam/bytes_tree.{type BytesTree}
-import gleam/dynamic.{type Dynamic}
 import gleam/erlang/charlist.{type Charlist}
 import gleam/erlang/process.{type Selector, type Subject}
 import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/otp/actor
-import gleam/otp/supervisor
+import gleam/otp/static_supervisor as supervisor
 import gleam/result
 import gleam/string
 import glisten/internal/acceptor.{Pool}
@@ -23,8 +22,8 @@ pub type StartError {
   ListenerClosed
   ListenerTimeout
   AcceptorTimeout
-  AcceptorFailed(process.ExitReason)
-  AcceptorCrashed(Dynamic)
+  AcceptorFailed(String)
+  AcceptorExited(process.ExitReason)
   SystemError(SocketReason)
 }
 
@@ -56,7 +55,7 @@ pub type SocketReason =
 pub opaque type Server {
   Server(
     listener: Subject(listener.Message),
-    supervisor: Subject(supervisor.Message),
+    supervisor: supervisor.Supervisor,
     transport: Transport,
   )
 }
@@ -66,18 +65,13 @@ pub type ConnectionInfo {
 }
 
 /// Returns the user-provided port or the OS-assigned value if 0 was provided.
-pub fn get_server_info(
-  server: Server,
-  timeout: Int,
-) -> Result(ConnectionInfo, process.CallError(listener.State)) {
-  process.try_call(server.listener, listener.Info, timeout)
-  |> result.map(fn(state) {
-    ConnectionInfo(state.port, convert_ip_address(state.ip_address))
-  })
+pub fn get_server_info(server: Server, timeout: Int) -> ConnectionInfo {
+  let state = process.call(server.listener, timeout, listener.Info)
+  ConnectionInfo(state.port, convert_ip_address(state.ip_address))
 }
 
-/// Gets the underlying supervisor `Subject` from the `Server`.
-pub fn get_supervisor(server: Server) -> Subject(supervisor.Message) {
+/// Gets the underlying supervisor `Supervisor` from the `Server`.
+pub fn get_supervisor(server: Server) -> supervisor.Supervisor {
   server.supervisor
 }
 
@@ -169,8 +163,8 @@ pub fn send(
 /// This is the shape of the function you need to provide for the `handler`
 /// argument to `serve(_ssl)`.
 pub type Loop(user_message, data) =
-  fn(Message(user_message), data, Connection(user_message)) ->
-    actor.Next(Message(user_message), data)
+  fn(data, Message(user_message), Connection(user_message)) ->
+    actor.Next(data, Message(user_message))
 
 pub opaque type Handler(user_message, data) {
   Handler(
@@ -199,18 +193,18 @@ fn map_user_selector(
 fn convert_loop(
   loop: Loop(user_message, data),
 ) -> handler.Loop(user_message, data) {
-  fn(msg, data, conn: handler.Connection(user_message)) {
+  fn(data, msg, conn: handler.Connection(user_message)) {
     let conn = Connection(conn.socket, conn.transport, conn.sender)
     case msg {
       handler.Packet(msg) -> {
-        case loop(Packet(msg), data, conn) {
+        case loop(data, Packet(msg), conn) {
           actor.Continue(data, selector) ->
             actor.Continue(data, option.map(selector, map_user_selector))
           actor.Stop(reason) -> actor.Stop(reason)
         }
       }
       handler.Custom(msg) -> {
-        case loop(User(msg), data, conn) {
+        case loop(data, User(msg), conn) {
           actor.Continue(data, selector) ->
             actor.Continue(data, option.map(selector, map_user_selector))
           actor.Stop(reason) -> actor.Stop(reason)
@@ -312,7 +306,7 @@ pub fn with_ipv6(
 pub fn serve(
   handler: Handler(user_message, data),
   port: Int,
-) -> Result(Subject(supervisor.Message), StartError) {
+) -> Result(supervisor.Supervisor, StartError) {
   start_server(handler, port)
   |> result.map(get_supervisor)
 }
@@ -324,7 +318,7 @@ pub fn serve_ssl(
   port port: Int,
   certfile certfile: String,
   keyfile keyfile: String,
-) -> Result(Subject(supervisor.Message), StartError) {
+) -> Result(supervisor.Supervisor, StartError) {
   start_ssl_server(handler, port, certfile, keyfile)
   |> result.map(get_supervisor)
 }
@@ -336,11 +330,12 @@ pub fn start_server(
   handler: Handler(user_message, data),
   port: Int,
 ) -> Result(Server, StartError) {
+  let listener_name = process.new_name("glisten_listener")
   let return = process.new_subject()
 
   let selector =
     process.new_selector()
-    |> process.selecting(return, fn(subj) { subj })
+    |> process.select(return)
 
   let options = case handler.ipv6_support {
     True -> [options.Ip(handler.interface), options.Ipv6]
@@ -354,18 +349,22 @@ pub fn start_server(
     on_close: handler.on_close,
     transport: transport.Tcp,
   )
-  |> acceptor.start_pool(transport.Tcp, port, options, return)
+  |> acceptor.start_pool(transport.Tcp, port, options, listener_name)
   |> result.map_error(fn(err) {
     case err {
       actor.InitTimeout -> AcceptorTimeout
       actor.InitFailed(reason) -> AcceptorFailed(reason)
-      actor.InitCrashed(reason) -> AcceptorCrashed(reason)
+      actor.InitExited(reason) -> AcceptorExited(reason)
     }
   })
   |> result.then(fn(pool) {
-    process.select(selector, 1500)
+    process.selector_receive(selector, 1500)
     |> result.map(fn(listener) {
-      Server(listener: listener, supervisor: pool, transport: transport.Tcp)
+      Server(
+        listener: listener,
+        supervisor: pool.data,
+        transport: transport.Tcp,
+      )
     })
     |> result.replace_error(AcceptorTimeout)
   })
@@ -380,6 +379,7 @@ pub fn start_ssl_server(
   certfile certfile: String,
   keyfile keyfile: String,
 ) -> Result(Server, StartError) {
+  let listener_name = process.new_name("glisten_listener")
   let base_options = [
     options.Ip(handler.interface),
     Certfile(certfile),
@@ -398,7 +398,7 @@ pub fn start_ssl_server(
 
   let selector =
     process.new_selector()
-    |> process.selecting(return, fn(subj) { subj })
+    |> process.select(return)
 
   Pool(
     handler: convert_loop(handler.loop),
@@ -411,21 +411,25 @@ pub fn start_ssl_server(
     transport.Ssl,
     port,
     list.flatten([default_options, protocol_options]),
-    return,
+    listener_name,
   )
   |> result.map_error(fn(err) {
     case err {
       actor.InitTimeout -> AcceptorTimeout
       actor.InitFailed(reason) -> AcceptorFailed(reason)
-      actor.InitCrashed(reason) -> AcceptorCrashed(reason)
+      actor.InitExited(reason) -> AcceptorExited(reason)
     }
   })
   |> result.then(fn(pool) {
-    process.select(selector, 1500)
-    |> result.map(fn(listener) {
-      Server(listener: listener, supervisor: pool, transport: transport.Tcp)
-    })
-    |> result.replace_error(AcceptorTimeout)
+    case process.selector_receive(selector, 1500) {
+      Ok(listener) ->
+        Ok(Server(
+          listener: listener,
+          supervisor: pool.data,
+          transport: transport.Tcp,
+        ))
+      _ -> Error(AcceptorTimeout)
+    }
   })
 }
 

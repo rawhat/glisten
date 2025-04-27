@@ -13,7 +13,7 @@ fn tcp_connect(
 pub fn connect(port: Int) -> Socket {
   let assert Ok(client) =
     tcp_connect(charlist.from_string("localhost"), port, [
-      dynamic.from(atom.create_from_string("binary")),
+      dynamic.from(atom.create("binary")),
     ])
   client
 }

@@ -49,8 +49,8 @@ pub fn to_dict(options: List(TcpOption)) -> Dict(Dynamic, Dynamic) {
     decode.success(#(opt, value))
   }
 
-  let active = atom.create_from_string("active")
-  let ip = atom.create_from_string("ip")
+  let active = atom.create("active")
+  let ip = atom.create("ip")
 
   options
   |> list.map(fn(opt) {
@@ -58,15 +58,14 @@ pub fn to_dict(options: List(TcpOption)) -> Dict(Dynamic, Dynamic) {
       ActiveMode(Passive) -> dynamic.from(#(active, False))
       ActiveMode(Active) -> dynamic.from(#(active, True))
       ActiveMode(Count(n)) -> dynamic.from(#(active, n))
-      ActiveMode(Once) ->
-        dynamic.from(#(active, atom.create_from_string("once")))
+      ActiveMode(Once) -> dynamic.from(#(active, atom.create("once")))
       Ip(Address(IpV4(a, b, c, d))) ->
         dynamic.from(#(ip, dynamic.from(#(a, b, c, d))))
       Ip(Address(IpV6(a, b, c, d, e, f, g, h))) ->
         dynamic.from(#(ip, dynamic.from(#(a, b, c, d, e, f, g, h))))
-      Ip(Any) -> dynamic.from(#(ip, atom.create_from_string("any")))
-      Ip(Loopback) -> dynamic.from(#(ip, atom.create_from_string("loopback")))
-      Ipv6 -> dynamic.from(atom.create_from_string("inet6"))
+      Ip(Any) -> dynamic.from(#(ip, atom.create("any")))
+      Ip(Loopback) -> dynamic.from(#(ip, atom.create("loopback")))
+      Ipv6 -> dynamic.from(atom.create("inet6"))
       other -> dynamic.from(other)
     }
   })
@@ -96,7 +95,7 @@ pub fn merge_with_defaults(options: List(TcpOption)) -> List(TcpOption) {
   |> list.map(dynamic.from)
   |> fn(opts) {
     case has_ipv6 {
-      True -> [dynamic.from(atom.create_from_string("inet6")), ..opts]
+      True -> [dynamic.from(atom.create("inet6")), ..opts]
       _ -> opts
     }
   }

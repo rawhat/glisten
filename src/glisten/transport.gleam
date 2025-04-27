@@ -203,7 +203,7 @@ pub fn get_socket_opts(
 }
 
 pub fn set_buffer_size(transport: Transport, socket: Socket) -> Result(Nil, Nil) {
-  get_socket_opts(transport, socket, [atom.create_from_string("recbuf")])
+  get_socket_opts(transport, socket, [atom.create("recbuf")])
   |> result.then(fn(p) {
     case p {
       [#(_buffer, value)] ->
