@@ -17,13 +17,11 @@ pub fn main() {
   logging.configure()
   let _ =
     logger_update_primary_config(
-      dict.from_list([
-        #(atom.create_from_string("level"), atom.create_from_string("debug")),
-      ]),
+      dict.from_list([#(atom.create("level"), atom.create("debug"))]),
     )
 
   let assert Ok(server) =
-    glisten.handler(fn(_conn) { #(Nil, None) }, fn(msg, state, conn) {
+    glisten.handler(fn(_conn) { #(Nil, None) }, fn(state, msg, conn) {
       let assert Ok(info) = glisten.get_client_info(conn)
       logging.log(
         logging.Info,
@@ -40,7 +38,7 @@ pub fn main() {
     |> glisten.with_ipv6
     |> glisten.start_server(0)
 
-  let assert Ok(info) = glisten.get_server_info(server, 5000)
+  let info = glisten.get_server_info(server, 5000)
 
   io.println(
     "Listening on "

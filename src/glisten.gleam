@@ -54,7 +54,7 @@ pub type SocketReason =
 /// potentially other information.
 pub opaque type Server {
   Server(
-    listener: Subject(listener.Message),
+    listener: process.Name(listener.Message),
     supervisor: supervisor.Supervisor,
     transport: Transport,
   )
@@ -66,7 +66,8 @@ pub type ConnectionInfo {
 
 /// Returns the user-provided port or the OS-assigned value if 0 was provided.
 pub fn get_server_info(server: Server, timeout: Int) -> ConnectionInfo {
-  let state = process.call(server.listener, timeout, listener.Info)
+  let listener = process.named_subject(server.listener)
+  let state = process.call(listener, timeout, listener.Info)
   ConnectionInfo(state.port, convert_ip_address(state.ip_address))
 }
 
@@ -331,11 +332,6 @@ pub fn start_server(
   port: Int,
 ) -> Result(Server, StartError) {
   let listener_name = process.new_name("glisten_listener")
-  let return = process.new_subject()
-
-  let selector =
-    process.new_selector()
-    |> process.select(return)
 
   let options = case handler.ipv6_support {
     True -> [options.Ip(handler.interface), options.Ipv6]
@@ -357,16 +353,12 @@ pub fn start_server(
       actor.InitExited(reason) -> AcceptorExited(reason)
     }
   })
-  |> result.then(fn(pool) {
-    process.selector_receive(selector, 1500)
-    |> result.map(fn(listener) {
-      Server(
-        listener: listener,
-        supervisor: pool.data,
-        transport: transport.Tcp,
-      )
-    })
-    |> result.replace_error(AcceptorTimeout)
+  |> result.map(fn(pool) {
+    Server(
+      listener: listener_name,
+      supervisor: pool.data,
+      transport: transport.Tcp,
+    )
   })
 }
 
@@ -394,12 +386,6 @@ pub fn start_ssl_server(
     False -> [options.AlpnPreferredProtocols(["http/1.1"])]
   }
 
-  let return = process.new_subject()
-
-  let selector =
-    process.new_selector()
-    |> process.select(return)
-
   Pool(
     handler: convert_loop(handler.loop),
     pool_count: handler.pool_size,
@@ -420,16 +406,12 @@ pub fn start_ssl_server(
       actor.InitExited(reason) -> AcceptorExited(reason)
     }
   })
-  |> result.then(fn(pool) {
-    case process.selector_receive(selector, 1500) {
-      Ok(listener) ->
-        Ok(Server(
-          listener: listener,
-          supervisor: pool.data,
-          transport: transport.Tcp,
-        ))
-      _ -> Error(AcceptorTimeout)
-    }
+  |> result.map(fn(pool) {
+    Server(
+      listener: listener_name,
+      supervisor: pool.data,
+      transport: transport.Tcp,
+    )
   })
 }
 

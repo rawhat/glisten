@@ -189,6 +189,11 @@ pub fn start_pool(
   let acceptors = list.range(from: 0, to: pool.pool_count)
   supervisor.new(supervisor.OneForOne)
   |> supervisor.add(
+    supervision.worker("glisten_listener", fn() {
+      listener.start(port, transport, options, listener_name)
+    }),
+  )
+  |> supervisor.add(
     supervision.supervisor("glisten_pool", fn() {
       supervisor.new(supervisor.OneForOne)
       |> list.fold(acceptors, _, fn(sup, index) {
@@ -201,11 +206,6 @@ pub fn start_pool(
         )
       })
       |> supervisor.start
-    }),
-  )
-  |> supervisor.add(
-    supervision.worker("glisten_listener", fn() {
-      listener.start(port, transport, options, listener_name)
     }),
   )
   |> supervisor.start

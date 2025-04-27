@@ -87,32 +87,33 @@ pub fn start(
         sender: subject,
       )
     let #(initial_state, user_selector) = handler.on_init(connection)
+    let base_selector = process.new_selector() |> process.select(subject)
     let selector =
       process.new_selector()
-      |> process.select_record(atom.create("tcp"), 3, fn(record) {
+      |> process.select_record(atom.create("tcp"), 2, fn(record) {
         {
-          use data <- decode.field(1, decode.bit_array)
+          use data <- decode.field(2, decode.bit_array)
           decode.success(ReceiveMessage(data))
         }
         |> decode.run(record, _)
         |> result.unwrap(ReceiveMessage(<<>>))
       })
-      |> process.select_record(atom.create("ssl"), 3, fn(record) {
+      |> process.select_record(atom.create("ssl"), 2, fn(record) {
         {
-          use data <- decode.field(1, decode.bit_array)
+          use data <- decode.field(2, decode.bit_array)
           decode.success(ReceiveMessage(data))
         }
         |> decode.run(record, _)
         |> result.unwrap(ReceiveMessage(<<>>))
       })
-      |> process.select_record(atom.create("ssl_closed"), 2, fn(_nil) {
+      |> process.select_record(atom.create("ssl_closed"), 1, fn(_nil) {
         SslClosed
       })
-      |> process.select_record(atom.create("tcp_closed"), 2, fn(_nil) {
+      |> process.select_record(atom.create("tcp_closed"), 1, fn(_nil) {
         TcpClosed
       })
       |> process.map_selector(Internal)
-    // |> process.select(subject, function.identity)
+      |> process.merge_selector(base_selector)
     let selector = case user_selector {
       Some(sel) ->
         sel
