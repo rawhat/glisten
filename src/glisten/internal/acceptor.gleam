@@ -37,7 +37,7 @@ pub type AcceptorState {
 /// Worker process that handles `accept`ing connections and starts a new process
 /// which receives the messages from the socket
 pub fn start(
-  pool: Pool(user_message, data),
+  pool: Pool(data, user_message),
   listener_name: process.Name(listener.Message),
 ) -> Result(actor.Started(Subject(AcceptorMessage)), actor.StartError) {
   actor.new_with_initialiser(1000, fn(subject) {
@@ -98,9 +98,9 @@ pub fn start(
   |> actor.start
 }
 
-pub type Pool(user_message, data) {
+pub type Pool(data, user_message) {
   Pool(
-    handler: Loop(user_message, data),
+    handler: Loop(data, user_message),
     pool_count: Int,
     on_init: fn(Connection(user_message)) ->
       #(data, Option(Selector(user_message))),
@@ -113,7 +113,7 @@ pub type Pool(user_message, data) {
 ///
 /// Runs `loop_fn` on ever message received
 pub fn start_pool(
-  pool: Pool(user_message, data),
+  pool: Pool(data, user_message),
   transport: Transport,
   port: Int,
   options: List(TcpOption),

@@ -37,13 +37,13 @@ pub type LoopMessage(user_message) {
 pub type ClientIp =
   Result(#(IpAddress, Int), Nil)
 
-pub type LoopState(user_message, data) {
+pub type LoopState(state, user_message) {
   LoopState(
     client_ip: ClientIp,
     socket: Socket,
     sender: Subject(Message(user_message)),
     transport: Transport,
-    data: data,
+    state: state,
   )
 }
 
@@ -56,24 +56,24 @@ pub type Connection(user_message) {
   )
 }
 
-pub type Loop(user_message, data) =
-  fn(data, LoopMessage(user_message), Connection(user_message)) ->
-    actor.Next(data, LoopMessage(user_message))
+pub type Loop(state, user_message) =
+  fn(state, LoopMessage(user_message), Connection(user_message)) ->
+    actor.Next(state, LoopMessage(user_message))
 
-pub type Handler(user_message, data) {
+pub type Handler(state, user_message) {
   Handler(
     socket: Socket,
-    loop: Loop(user_message, data),
+    loop: Loop(state, user_message),
     on_init: fn(Connection(user_message)) ->
-      #(data, Option(Selector(user_message))),
-    on_close: Option(fn(data) -> Nil),
+      #(state, Option(Selector(user_message))),
+    on_close: Option(fn(state) -> Nil),
     transport: Transport,
   )
 }
 
 /// Starts an actor for the TCP connection
 pub fn start(
-  handler: Handler(user_message, data),
+  handler: Handler(state, user_message),
 ) -> Result(actor.Started(Subject(Message(user_message))), actor.StartError) {
   actor.new_with_initialiser(1000, fn(subject) {
     let client_ip =
@@ -126,7 +126,7 @@ pub fn start(
       socket: handler.socket,
       sender: subject,
       transport: handler.transport,
-      data: initial_state,
+      state: initial_state,
     )
     |> actor.initialised()
     |> actor.selecting(selector)
@@ -146,7 +146,7 @@ pub fn start(
         case transport.close(state.transport, state.socket) {
           Ok(Nil) -> {
             let _ = case handler.on_close {
-              Some(on_close) -> on_close(state.data)
+              Some(on_close) -> on_close(state.state)
               _ -> Nil
             }
             actor.stop()
@@ -182,14 +182,14 @@ pub fn start(
         |> result.unwrap_both
       User(msg) -> {
         let msg = Custom(msg)
-        let res = rescue(fn() { handler.loop(state.data, msg, connection) })
+        let res = rescue(fn() { handler.loop(state.state, msg, connection) })
         case res {
           Ok(actor.Continue(next_state, _selector)) -> {
             let assert Ok(Nil) =
               transport.set_opts(state.transport, state.socket, [
                 options.ActiveMode(options.Once),
               ])
-            actor.continue(LoopState(..state, data: next_state))
+            actor.continue(LoopState(..state, state: next_state))
           }
           Ok(actor.Stop(reason)) -> actor.Stop(reason)
           Error(reason) -> {
@@ -203,14 +203,14 @@ pub fn start(
       }
       Internal(ReceiveMessage(msg)) -> {
         let msg = Packet(msg)
-        let res = rescue(fn() { handler.loop(state.data, msg, connection) })
+        let res = rescue(fn() { handler.loop(state.state, msg, connection) })
         case res {
           Ok(actor.Continue(next_state, _selector)) -> {
             let assert Ok(Nil) =
               transport.set_opts(state.transport, state.socket, [
                 options.ActiveMode(options.Once),
               ])
-            actor.continue(LoopState(..state, data: next_state))
+            actor.continue(LoopState(..state, state: next_state))
           }
           Ok(actor.Stop(_reason)) -> {
             actor.stop()

@@ -163,17 +163,17 @@ pub fn send(
 
 /// This is the shape of the function you need to provide for the `handler`
 /// argument to `serve(_ssl)`.
-pub type Loop(user_message, data) =
-  fn(data, Message(user_message), Connection(user_message)) ->
-    actor.Next(data, Message(user_message))
+pub type Loop(state, user_message) =
+  fn(state, Message(user_message), Connection(user_message)) ->
+    actor.Next(state, Message(user_message))
 
-pub opaque type Handler(user_message, data) {
+pub opaque type Handler(state, user_message) {
   Handler(
     interface: options.Interface,
     on_init: fn(Connection(user_message)) ->
-      #(data, Option(Selector(user_message))),
-    loop: Loop(user_message, data),
-    on_close: Option(fn(data) -> Nil),
+      #(state, Option(Selector(user_message))),
+    loop: Loop(state, user_message),
+    on_close: Option(fn(state) -> Nil),
     pool_size: Int,
     http2_support: Bool,
     ipv6_support: Bool,
@@ -192,8 +192,8 @@ fn map_user_selector(
 }
 
 fn convert_loop(
-  loop: Loop(user_message, data),
-) -> handler.Loop(user_message, data) {
+  loop: Loop(state, user_message),
+) -> handler.Loop(state, user_message) {
   fn(data, msg, conn: handler.Connection(user_message)) {
     let conn = Connection(conn.socket, conn.transport, conn.sender)
     case msg {
@@ -236,9 +236,9 @@ fn convert_on_init(
 /// processes.
 pub fn handler(
   on_init: fn(Connection(user_message)) ->
-    #(data, Option(Selector(user_message))),
-  loop: Loop(user_message, data),
-) -> Handler(user_message, data) {
+    #(state, Option(Selector(user_message))),
+  loop: Loop(state, user_message),
+) -> Handler(state, user_message) {
   Handler(
     interface: options.Loopback,
     on_init: on_init,
@@ -252,17 +252,17 @@ pub fn handler(
 
 /// Adds a function to the handler to be called when the connection is closed.
 pub fn with_close(
-  handler: Handler(user_message, data),
-  on_close: fn(data) -> Nil,
-) -> Handler(user_message, data) {
+  handler: Handler(state, user_message),
+  on_close: fn(state) -> Nil,
+) -> Handler(state, user_message) {
   Handler(..handler, on_close: Some(on_close))
 }
 
 /// Modify the size of the acceptor pool
 pub fn with_pool_size(
-  handler: Handler(user_message, data),
+  handler: Handler(state, user_message),
   size: Int,
-) -> Handler(user_message, data) {
+) -> Handler(state, user_message) {
   Handler(..handler, pool_size: size)
 }
 
@@ -270,8 +270,8 @@ pub fn with_pool_size(
 /// exposed only for `mist` to provide this support.  For a TCP library, you
 /// definitely do not need it.
 pub fn with_http2(
-  handler: Handler(user_message, data),
-) -> Handler(user_message, data) {
+  handler: Handler(state, user_message),
+) -> Handler(state, user_message) {
   Handler(..handler, http2_support: True)
 }
 
@@ -280,9 +280,9 @@ pub fn with_http2(
 /// IPv6 addresses (i.e. "::1"). If an invalid value is provided, this will
 /// panic.
 pub fn bind(
-  handler: Handler(user_message, data),
+  handler: Handler(state, user_message),
   interface: String,
-) -> Handler(user_message, data) {
+) -> Handler(state, user_message) {
   let address = case interface, parse_address(charlist.from_string(interface)) {
     "0.0.0.0", _ -> options.Any
     "localhost", _ | "127.0.0.1", _ -> options.Loopback
@@ -298,14 +298,14 @@ pub fn bind(
 /// interface.  If it is not supported, your application will crash.  If you
 /// call this with an IPv6 interface specified, it will have no effect.
 pub fn with_ipv6(
-  handler: Handler(user_message, data),
-) -> Handler(user_message, data) {
+  handler: Handler(state, user_message),
+) -> Handler(state, user_message) {
   Handler(..handler, ipv6_support: True)
 }
 
 /// Start the TCP server with the given handler on the provided port
 pub fn serve(
-  handler: Handler(user_message, data),
+  handler: Handler(state, user_message),
   port: Int,
 ) -> Result(supervisor.Supervisor, StartError) {
   start_server(handler, port)
@@ -315,7 +315,7 @@ pub fn serve(
 /// Start the SSL server with the given handler on the provided port.  The key
 /// and cert files must be provided, valid, and readable by the current user.
 pub fn serve_ssl(
-  handler: Handler(user_message, data),
+  handler: Handler(state, user_message),
   port port: Int,
   certfile certfile: String,
   keyfile keyfile: String,
@@ -328,7 +328,7 @@ pub fn serve_ssl(
 /// you need access to the port. In the future, it will also allow graceful
 /// shutdown. There may also be other metadata attached to this return value.
 pub fn start_server(
-  handler: Handler(user_message, data),
+  handler: Handler(state, user_message),
   port: Int,
 ) -> Result(Server, StartError) {
   let listener_name = process.new_name("glisten_listener")
