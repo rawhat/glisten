@@ -151,9 +151,7 @@ pub fn start(
             }
             actor.stop()
           }
-          Error(_err) -> actor.stop()
-          // TODO: rework this when it's supported
-          // actor.Stop(process.Abnormal(string.inspect(err)))
+          Error(err) -> actor.Stop(process.Abnormal(dynamic.from(err)))
         }
       Internal(Ready) ->
         state.socket
@@ -178,10 +176,8 @@ pub fn start(
           |> result.replace_error("Failed to set socket active")
         })
         |> result.replace(actor.continue(state))
-        |> result.map_error(fn(_reason) {
-          actor.stop()
-          // TODO:  use when supported
-          // actor.Stop(process.Abnormal(reason))
+        |> result.map_error(fn(reason) {
+          actor.Stop(process.Abnormal(dynamic.from(reason)))
         })
         |> result.unwrap_both
       User(msg) -> {

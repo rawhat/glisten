@@ -1,6 +1,5 @@
 import gleam/dynamic
 import gleam/erlang/process.{type Selector, type Subject, Abnormal}
-import gleam/int
 import gleam/list
 import gleam/option.{type Option, None}
 import gleam/otp/actor
@@ -55,7 +54,6 @@ pub fn start(
       |> process.select(subject),
     )
     |> Ok
-    // Ok(AcceptorState(subject, None, pool.transport), selector)
   })
   |> actor.on_message(fn(state, msg) {
     let AcceptorState(sender, ..) = state
@@ -98,71 +96,6 @@ pub fn start(
     }
   })
   |> actor.start
-  // actor.start_spec(actor.Spec(
-  //   init: fn() {
-  //     let subject = process.new_subject()
-  //     let selector =
-  //       process.new_selector()
-  //       |> process.selecting(subject, function.identity)
-  //
-  //     process.call(listener_name, listener.Info, 750)
-  //     |> result.map(fn(state) {
-  //       process.send(subject, AcceptConnection(state.listen_socket))
-  //       actor.Ready(AcceptorState(subject, None, pool.transport), selector)
-  //     })
-  //     |> result.map_error(fn(err) {
-  //       actor.Failed("Failed to read listen socket: " <> string.inspect(err))
-  //     })
-  //     |> result.unwrap_both
-  //   },
-  //   // TODO:  rethink this value, probably...
-  //   init_timeout: 1000,
-  //   loop: fn(msg, state) {
-  //     let AcceptorState(sender, ..) = state
-  //     case msg {
-  //       AcceptConnection(listener) -> {
-  //         let res = {
-  //           use sock <- result.then(
-  //             transport.accept(state.transport, listener)
-  //             |> result.replace_error(AcceptError),
-  //           )
-  //           use start <- result.then(
-  //             Handler(
-  //               socket: sock,
-  //               loop: pool.handler,
-  //               on_init: pool.on_init,
-  //               on_close: pool.on_close,
-  //               transport: pool.transport,
-  //             )
-  //             |> handler.start
-  //             |> result.replace_error(HandlerError),
-  //           )
-  //           sock
-  //           |> transport.controlling_process(
-  //             state.transport,
-  //             _,
-  //             process.subject_owner(start),
-  //           )
-  //           |> result.replace_error(ControlError)
-  //           |> result.map(fn(_) { process.send(start, Internal(Ready)) })
-  //         }
-  //         case res {
-  //           Error(reason) -> {
-  //             logging.log(
-  //               logging.Error,
-  //               "Failed to accept/start handler: " <> string.inspect(reason),
-  //             )
-  //             actor.Stop(Abnormal("Failed to accept/start handler"))
-  //           }
-  //           _val -> {
-  //             actor.send(sender, AcceptConnection(listener))
-  //             actor.continue(state)
-  //           }
-  //         }
-  //       }
-  //     }
-  //   },
-  // ))
 }
 
 pub type Pool(user_message, data) {
@@ -189,20 +122,17 @@ pub fn start_pool(
   let acceptors = list.range(from: 0, to: pool.pool_count)
   supervisor.new(supervisor.OneForOne)
   |> supervisor.add(
-    supervision.worker("glisten_listener", fn() {
+    supervision.worker(fn() {
       listener.start(port, transport, options, listener_name)
     }),
   )
   |> supervisor.add(
-    supervision.supervisor("glisten_pool", fn() {
+    supervision.supervisor(fn() {
       supervisor.new(supervisor.OneForOne)
-      |> list.fold(acceptors, _, fn(sup, index) {
+      |> list.fold(acceptors, _, fn(sup, _index) {
         supervisor.add(
           sup,
-          supervision.worker(
-            "glisten_pool_child_" <> int.to_string(index),
-            fn() { start(pool, listener_name) },
-          ),
+          supervision.worker(fn() { start(pool, listener_name) }),
         )
       })
       |> supervisor.start

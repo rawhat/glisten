@@ -1,4 +1,3 @@
-import gleam/io
 import gleam/result
 import glisten/socket/options.{ActiveMode, Passive}
 import glisten/tcp
@@ -10,7 +9,7 @@ pub fn main() {
   use listener <- result.then(tcp.listen(8000, [ActiveMode(Passive)]))
   use socket <- result.then(tcp.accept(listener))
   use msg <- result.then(tcp.receive(socket, 0))
-  io.debug(#("got a msg", msg))
+  echo msg
 
   Ok(Nil)
 }
