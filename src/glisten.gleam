@@ -17,16 +17,6 @@ import glisten/socket.{
 import glisten/socket/options.{Certfile, Keyfile}
 import glisten/transport.{type Transport}
 
-/// Reasons that `serve` might fail
-pub type StartError {
-  ListenerClosed
-  ListenerTimeout
-  AcceptorTimeout
-  AcceptorFailed(String)
-  AcceptorExited(process.ExitReason)
-  SystemError(SocketReason)
-}
-
 /// Your provided loop function will receive these message types as the
 /// first argument.
 pub type Message(user_message) {
@@ -48,32 +38,18 @@ pub type Socket =
 pub type SocketReason =
   InternalSocketReason
 
-/// This holds information about the server.  Returned by the `start_server` /
-/// `start_ssl_server` methods, it will allow you to get access to an
-/// OS-assigned port. Eventually, it will be used for graceful shutdown, and
-/// potentially other information.
-pub opaque type Server {
-  Server(
-    listener: process.Name(listener.Message),
-    supervisor: supervisor.Supervisor,
-    transport: Transport,
-  )
-}
-
 pub type ConnectionInfo {
   ConnectionInfo(port: Int, ip_address: IpAddress)
 }
 
 /// Returns the user-provided port or the OS-assigned value if 0 was provided.
-pub fn get_server_info(server: Server, timeout: Int) -> ConnectionInfo {
-  let listener = process.named_subject(server.listener)
+pub fn get_server_info(
+  listener: process.Name(listener.Message),
+  timeout: Int,
+) -> ConnectionInfo {
+  let listener = process.named_subject(listener)
   let state = process.call(listener, timeout, listener.Info)
   ConnectionInfo(state.port, convert_ip_address(state.ip_address))
-}
-
-/// Gets the underlying supervisor `Supervisor` from the `Server`.
-pub fn get_supervisor(server: Server) -> supervisor.Supervisor {
-  server.supervisor
 }
 
 /// This type holds useful bits of data for the active connection.
@@ -307,32 +283,18 @@ pub fn with_ipv6(
 pub fn serve(
   handler: Handler(state, user_message),
   port: Int,
-) -> Result(supervisor.Supervisor, StartError) {
-  start_server(handler, port)
-  |> result.map(get_supervisor)
-}
-
-/// Start the SSL server with the given handler on the provided port.  The key
-/// and cert files must be provided, valid, and readable by the current user.
-pub fn serve_ssl(
-  handler: Handler(state, user_message),
-  port port: Int,
-  certfile certfile: String,
-  keyfile keyfile: String,
-) -> Result(supervisor.Supervisor, StartError) {
-  start_ssl_server(handler, port, certfile, keyfile)
-  |> result.map(get_supervisor)
-}
-
-/// Starts a TCP server and returns the `Server` construct.  This is useful if
-/// you need access to the port. In the future, it will also allow graceful
-/// shutdown. There may also be other metadata attached to this return value.
-pub fn start_server(
-  handler: Handler(state, user_message),
-  port: Int,
-) -> Result(Server, StartError) {
+) -> Result(actor.Started(supervisor.Supervisor), actor.StartError) {
   let listener_name = process.new_name("glisten_listener")
 
+  serve_with_listener_name(handler, port, listener_name)
+}
+
+@internal
+pub fn serve_with_listener_name(
+  handler: Handler(state, user_message),
+  port: Int,
+  listener_name: process.Name(listener.Message),
+) -> Result(actor.Started(supervisor.Supervisor), actor.StartError) {
   let options = case handler.ipv6_support {
     True -> [options.Ip(handler.interface), options.Ipv6]
     False -> [options.Ip(handler.interface)]
@@ -346,32 +308,28 @@ pub fn start_server(
     transport: transport.Tcp,
   )
   |> acceptor.start_pool(transport.Tcp, port, options, listener_name)
-  |> result.map_error(fn(err) {
-    case err {
-      actor.InitTimeout -> AcceptorTimeout
-      actor.InitFailed(reason) -> AcceptorFailed(reason)
-      actor.InitExited(reason) -> AcceptorExited(reason)
-    }
-  })
-  |> result.map(fn(pool) {
-    Server(
-      listener: listener_name,
-      supervisor: pool.data,
-      transport: transport.Tcp,
-    )
-  })
 }
 
-/// Starts an SSL server and returns the `Server` construct.  This is useful if
-/// you need access to the port. In the future, it will also allow graceful
-/// shutdown. There may also be other metadata attached to this return value.
-pub fn start_ssl_server(
-  handler: Handler(user_message, data),
+/// Start the SSL server with the given handler on the provided port.  The key
+/// and cert files must be provided, valid, and readable by the current user.
+pub fn serve_ssl(
+  handler: Handler(state, user_message),
   port port: Int,
   certfile certfile: String,
   keyfile keyfile: String,
-) -> Result(Server, StartError) {
+) -> Result(actor.Started(supervisor.Supervisor), actor.StartError) {
   let listener_name = process.new_name("glisten_listener")
+  serve_ssl_with_listener_name(handler, port, certfile, keyfile, listener_name)
+}
+
+@internal
+pub fn serve_ssl_with_listener_name(
+  handler: Handler(state, user_message),
+  port port: Int,
+  certfile certfile: String,
+  keyfile keyfile: String,
+  listener_name listener_name: process.Name(listener.Message),
+) -> Result(actor.Started(supervisor.Supervisor), actor.StartError) {
   let base_options = [
     options.Ip(handler.interface),
     Certfile(certfile),
@@ -399,20 +357,6 @@ pub fn start_ssl_server(
     list.flatten([default_options, protocol_options]),
     listener_name,
   )
-  |> result.map_error(fn(err) {
-    case err {
-      actor.InitTimeout -> AcceptorTimeout
-      actor.InitFailed(reason) -> AcceptorFailed(reason)
-      actor.InitExited(reason) -> AcceptorExited(reason)
-    }
-  })
-  |> result.map(fn(pool) {
-    Server(
-      listener: listener_name,
-      supervisor: pool.data,
-      transport: transport.Tcp,
-    )
-  })
 }
 
 @external(erlang, "glisten_ffi", "parse_address")
