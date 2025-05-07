@@ -10,7 +10,7 @@ extra_applications = ["ssl"]
 
 [dependencies]
 gleam_stdlib = ">= 0.44.0 and < 1.0.0"
-gleam_otp = { git = "/home/alex/repos/gleam_otp", ref = "redux" }
+gleam_otp = { git = "git@github.com:gleam-lang/otp", ref = "redux" }
 gleam_erlang = "1.0.0-rc1"
 telemetry = ">= 1.2.1 and < 2.0.0"
 logging = ">= 1.3.0 and < 2.0.0"
