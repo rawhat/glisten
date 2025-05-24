@@ -1,3 +1,8 @@
+# Unreleased
+
+- Support `gleam_erlang` and `gleam_otp` v1
+- Some major API changes (TODO)
+
 # v7.0.1
 
 - Migrate to `gleam/dynamic/decode` API
