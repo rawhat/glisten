@@ -7,6 +7,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/otp/actor
 import gleam/otp/static_supervisor as supervisor
+import gleam/otp/supervision.{type ChildSpecification}
 import gleam/result
 import gleam/string
 import glisten/internal/acceptor.{Pool}
@@ -274,6 +275,7 @@ pub fn with_pool_size(
 /// Sets the ALPN supported protocols to include HTTP/2.  It's currently being
 /// exposed only for `mist` to provide this support.  For a TCP library, you
 /// definitely do not need it.
+@internal
 pub fn with_http2(
   handler: Handler(state, user_message),
 ) -> Handler(state, user_message) {
@@ -390,3 +392,23 @@ pub fn serve_ssl_with_listener_name(
 
 @external(erlang, "glisten_ffi", "parse_address")
 fn parse_address(value: Charlist) -> Result(ip_address, Nil)
+
+/// Helper method for building a child specification for use in a supervision
+/// tree.  This will use the regular TCP server.
+pub fn supervised(
+  handler: Handler(state, user_message),
+  port: Int,
+) -> ChildSpecification(supervisor.Supervisor) {
+  supervision.supervisor(fn() { serve(handler, port) })
+}
+
+/// Helper method for building a child specification for use in a supervision
+/// tree.  This will use an SSL server with the provided certificate / key.
+pub fn supervised_ssl(
+  handler: Handler(state, user_message),
+  port port: Int,
+  certfile certfile: String,
+  keyfile keyfile: String,
+) -> ChildSpecification(supervisor.Supervisor) {
+  supervision.supervisor(fn() { serve_ssl(handler, port, certfile, keyfile) })
+}

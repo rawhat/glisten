@@ -58,7 +58,8 @@ pub type Connection(user_message) {
 
 pub opaque type Next(user_state, user_message) {
   Continue(state: user_state, selector: Option(Selector(user_message)))
-  Stop(reason: process.ExitReason)
+  NormalStop
+  AbnormalStop(reason: String)
 }
 
 pub fn continue(state: user_state) -> Next(user_state, user_message) {
@@ -76,11 +77,11 @@ pub fn with_selector(
 }
 
 pub fn stop() -> Next(user_state, user_message) {
-  Stop(process.Normal)
+  NormalStop
 }
 
-pub fn stop_abnormal(reason: Dynamic) -> Next(user_state, user_message) {
-  Stop(process.Abnormal(reason))
+pub fn stop_abnormal(reason: String) -> Next(user_state, user_message) {
+  AbnormalStop(reason)
 }
 
 pub type Loop(state, user_message) =
@@ -178,7 +179,7 @@ pub fn start(
             }
             actor.stop()
           }
-          Error(err) -> actor.stop_abnormal(dynamic.from(err))
+          Error(err) -> actor.stop_abnormal(string.inspect(err))
         }
       Internal(Ready) ->
         state.socket
@@ -203,9 +204,7 @@ pub fn start(
           |> result.replace_error("Failed to set socket active")
         })
         |> result.replace(actor.continue(state))
-        |> result.map_error(fn(reason) {
-          actor.stop_abnormal(dynamic.from(reason))
-        })
+        |> result.map_error(actor.stop_abnormal)
         |> result.unwrap_both
       User(msg) -> {
         let msg = Custom(msg)
@@ -218,10 +217,8 @@ pub fn start(
               ])
             actor.continue(LoopState(..state, state: next_state))
           }
-          Ok(Stop(process.Normal)) -> actor.stop()
-          Ok(Stop(process.Abnormal(reason))) -> actor.stop_abnormal(reason)
-          Ok(Stop(process.Killed)) ->
-            actor.stop_abnormal(dynamic.from("killed"))
+          Ok(NormalStop) -> actor.stop()
+          Ok(AbnormalStop(reason)) -> actor.stop_abnormal(reason)
           Error(reason) -> {
             logging.log(
               logging.Error,
@@ -242,10 +239,8 @@ pub fn start(
               ])
             actor.continue(LoopState(..state, state: next_state))
           }
-          Ok(Stop(process.Normal)) -> actor.stop()
-          Ok(Stop(process.Abnormal(reason))) -> actor.stop_abnormal(reason)
-          Ok(Stop(process.Killed)) ->
-            actor.stop_abnormal(dynamic.from("killed"))
+          Ok(NormalStop) -> actor.stop()
+          Ok(AbnormalStop(reason)) -> actor.stop_abnormal(reason)
           Error(reason) -> {
             logging.log(
               logging.Error,
