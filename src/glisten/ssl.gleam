@@ -51,7 +51,7 @@ pub fn shutdown(socket: Socket) -> Result(Nil, SocketReason) {
 @external(erlang, "glisten_ssl_ffi", "set_opts")
 fn do_set_opts(socket: Socket, opts: List(Dynamic)) -> Result(Nil, Nil)
 
-@external(erlang, "gleam@@stdlib@@function", "identity")
+@external(erlang, "gleam@function", "identity")
 fn from(value: a) -> Dynamic
 
 /// Update the optons for a socket (mutates the socket)

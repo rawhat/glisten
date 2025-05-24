@@ -34,9 +34,6 @@ pub fn main() {
       let assert Packet(msg) = msg
       let assert Ok(_) = glisten.send(conn, bytes_tree.from_bit_array(msg))
       glisten.continue(state)
-      // |> glisten.with_selector(...)
-      // glisten.stop()
-      // glisten.stop_abnormal()
     })
     |> glisten.bind("localhost")
     |> glisten.with_ipv6

@@ -1,5 +1,4 @@
 import gleam/bytes_tree.{type BytesTree}
-import gleam/dynamic.{type Dynamic}
 import gleam/erlang/charlist.{type Charlist}
 import gleam/erlang/process.{type Selector, type Subject}
 import gleam/int
@@ -141,7 +140,8 @@ pub fn send(
 
 pub opaque type Next(user_state, user_message) {
   Continue(state: user_state, selector: Option(Selector(user_message)))
-  Stop(reason: process.ExitReason)
+  NormalStop
+  AbnormalStop(String)
 }
 
 pub fn continue(state: user_state) -> Next(user_state, user_message) {
@@ -159,11 +159,11 @@ pub fn with_selector(
 }
 
 pub fn stop() -> Next(user_state, user_message) {
-  Stop(process.Normal)
+  NormalStop
 }
 
-pub fn stop_abnormal(reason: Dynamic) -> Next(user_state, user_message) {
-  Stop(process.Abnormal(reason))
+pub fn stop_abnormal(reason: String) -> Next(user_state, user_message) {
+  AbnormalStop(reason)
 }
 
 /// This is the shape of the function you need to provide for the `handler`
@@ -214,9 +214,8 @@ fn convert_loop(
           _ -> handler.continue(data)
         }
 
-      Stop(process.Normal) -> handler.stop()
-      Stop(process.Abnormal(reason)) -> handler.stop_abnormal(reason)
-      Stop(process.Killed) -> handler.stop_abnormal(dynamic.from("killed"))
+      NormalStop -> handler.stop()
+      AbnormalStop(reason) -> handler.stop_abnormal(reason)
     }
   }
 }

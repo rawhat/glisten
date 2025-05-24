@@ -42,7 +42,7 @@ pub type TcpOption {
   Ip(Interface)
 }
 
-@external(erlang, "gleam@@stdlib@@function", "identity")
+@external(erlang, "gleam@function", "identity")
 fn from(value: a) -> Dynamic
 
 pub fn to_dict(options: List(TcpOption)) -> Dict(Dynamic, Dynamic) {

@@ -3,7 +3,6 @@ import gleam/dynamic/decode
 import gleam/erlang/process
 import gleam/list
 import gleam/option.{None}
-import gleam/otp/actor
 import gleeunit
 import gleeunit/should
 import glisten.{IpV6, Packet}
@@ -51,7 +50,7 @@ pub fn it_accepts_from_the_pool_test() {
     glisten.handler(fn(_conn) { #(Nil, None) }, fn(state, msg, conn) {
       let assert Packet(msg) = msg
       let assert Ok(_) = tcp.send(conn.socket, bytes_tree.from_bit_array(msg))
-      actor.continue(state)
+      glisten.continue(state)
     })
     |> glisten.with_pool_size(1)
     |> glisten.serve(54_321)

@@ -10,10 +10,13 @@ fn tcp_connect(
   options: List(Dynamic),
 ) -> Result(Socket, Nil)
 
+@external(erlang, "gleam@function", "identity")
+fn from(value: a) -> Dynamic
+
 pub fn connect(port: Int) -> Socket {
   let assert Ok(client) =
     tcp_connect(charlist.from_string("localhost"), port, [
-      dynamic.from(atom.create("binary")),
+      from(atom.create("binary")),
     ])
   client
 }
