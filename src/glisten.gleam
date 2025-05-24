@@ -1,4 +1,5 @@
 import gleam/bytes_tree.{type BytesTree}
+import gleam/dynamic.{type Dynamic}
 import gleam/erlang/charlist.{type Charlist}
 import gleam/erlang/process.{type Selector, type Subject}
 import gleam/int
@@ -137,11 +138,38 @@ pub fn send(
   transport.send(conn.transport, conn.socket, msg)
 }
 
+pub opaque type Next(user_state, user_message) {
+  Continue(state: user_state, selector: Option(Selector(user_message)))
+  Stop(reason: process.ExitReason)
+}
+
+pub fn continue(state: user_state) -> Next(user_state, user_message) {
+  Continue(state, None)
+}
+
+pub fn with_selector(
+  next: Next(user_state, user_message),
+  selector: Selector(user_message),
+) -> Next(user_state, user_message) {
+  case next {
+    Continue(state, _) -> Continue(state, Some(selector))
+    stop -> stop
+  }
+}
+
+pub fn stop() -> Next(user_state, user_message) {
+  Stop(process.Normal)
+}
+
+pub fn stop_abnormal(reason: Dynamic) -> Next(user_state, user_message) {
+  Stop(process.Abnormal(reason))
+}
+
 /// This is the shape of the function you need to provide for the `handler`
 /// argument to `serve(_ssl)`.
 pub type Loop(state, user_message) =
   fn(state, Message(user_message), Connection(user_message)) ->
-    actor.Next(state, Message(user_message))
+    Next(state, Message(user_message))
 
 pub opaque type Handler(state, user_message) {
   Handler(
@@ -172,21 +200,22 @@ fn convert_loop(
 ) -> handler.Loop(state, user_message) {
   fn(data, msg, conn: handler.Connection(user_message)) {
     let conn = Connection(conn.socket, conn.transport, conn.sender)
-    case msg {
-      handler.Packet(msg) -> {
-        case loop(data, Packet(msg), conn) {
-          actor.Continue(data, selector) ->
-            actor.Continue(data, option.map(selector, map_user_selector))
-          actor.Stop(reason) -> actor.Stop(reason)
+    let message = case msg {
+      handler.Packet(msg) -> Packet(msg)
+      handler.Custom(msg) -> User(msg)
+    }
+    case loop(data, message, conn) {
+      Continue(data, selector) ->
+        case selector {
+          Some(selector) ->
+            handler.continue(data)
+            |> handler.with_selector(map_user_selector(selector))
+          _ -> handler.continue(data)
         }
-      }
-      handler.Custom(msg) -> {
-        case loop(data, User(msg), conn) {
-          actor.Continue(data, selector) ->
-            actor.Continue(data, option.map(selector, map_user_selector))
-          actor.Stop(reason) -> actor.Stop(reason)
-        }
-      }
+
+      Stop(process.Normal) -> handler.stop()
+      Stop(process.Abnormal(reason)) -> handler.stop_abnormal(reason)
+      Stop(process.Killed) -> handler.stop_abnormal(dynamic.from("killed"))
     }
   }
 }

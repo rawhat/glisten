@@ -1,5 +1,5 @@
 import gleam/dynamic
-import gleam/erlang/process.{type Selector, type Subject, Abnormal}
+import gleam/erlang/process.{type Selector, type Subject}
 import gleam/list
 import gleam/option.{type Option, None}
 import gleam/otp/actor
@@ -85,7 +85,7 @@ pub fn start(
               logging.Error,
               "Failed to accept/start handler: " <> string.inspect(reason),
             )
-            actor.Stop(Abnormal(dynamic.from("Failed to accept/start handler")))
+            actor.stop_abnormal(dynamic.from("Failed to accept/start handler"))
           }
           _val -> {
             actor.send(sender, AcceptConnection(listener))

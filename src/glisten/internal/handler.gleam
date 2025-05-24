@@ -2,7 +2,7 @@ import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode
 import gleam/erlang/atom
 import gleam/erlang/process.{type Selector, type Subject}
-import gleam/option.{type Option, Some}
+import gleam/option.{type Option, None, Some}
 import gleam/otp/actor
 import gleam/result
 import gleam/string
@@ -56,9 +56,36 @@ pub type Connection(user_message) {
   )
 }
 
+pub opaque type Next(user_state, user_message) {
+  Continue(state: user_state, selector: Option(Selector(user_message)))
+  Stop(reason: process.ExitReason)
+}
+
+pub fn continue(state: user_state) -> Next(user_state, user_message) {
+  Continue(state, None)
+}
+
+pub fn with_selector(
+  next: Next(user_state, user_message),
+  selector: Selector(user_message),
+) -> Next(user_state, user_message) {
+  case next {
+    Continue(state, _) -> Continue(state, Some(selector))
+    stop -> stop
+  }
+}
+
+pub fn stop() -> Next(user_state, user_message) {
+  Stop(process.Normal)
+}
+
+pub fn stop_abnormal(reason: Dynamic) -> Next(user_state, user_message) {
+  Stop(process.Abnormal(reason))
+}
+
 pub type Loop(state, user_message) =
   fn(state, LoopMessage(user_message), Connection(user_message)) ->
-    actor.Next(state, LoopMessage(user_message))
+    Next(state, LoopMessage(user_message))
 
 pub type Handler(state, user_message) {
   Handler(
@@ -151,7 +178,7 @@ pub fn start(
             }
             actor.stop()
           }
-          Error(err) -> actor.Stop(process.Abnormal(dynamic.from(err)))
+          Error(err) -> actor.stop_abnormal(dynamic.from(err))
         }
       Internal(Ready) ->
         state.socket
@@ -177,21 +204,24 @@ pub fn start(
         })
         |> result.replace(actor.continue(state))
         |> result.map_error(fn(reason) {
-          actor.Stop(process.Abnormal(dynamic.from(reason)))
+          actor.stop_abnormal(dynamic.from(reason))
         })
         |> result.unwrap_both
       User(msg) -> {
         let msg = Custom(msg)
         let res = rescue(fn() { handler.loop(state.state, msg, connection) })
         case res {
-          Ok(actor.Continue(next_state, _selector)) -> {
+          Ok(Continue(next_state, _selector)) -> {
             let assert Ok(Nil) =
               transport.set_opts(state.transport, state.socket, [
                 options.ActiveMode(options.Once),
               ])
             actor.continue(LoopState(..state, state: next_state))
           }
-          Ok(actor.Stop(reason)) -> actor.Stop(reason)
+          Ok(Stop(process.Normal)) -> actor.stop()
+          Ok(Stop(process.Abnormal(reason))) -> actor.stop_abnormal(reason)
+          Ok(Stop(process.Killed)) ->
+            actor.stop_abnormal(dynamic.from("killed"))
           Error(reason) -> {
             logging.log(
               logging.Error,
@@ -205,17 +235,17 @@ pub fn start(
         let msg = Packet(msg)
         let res = rescue(fn() { handler.loop(state.state, msg, connection) })
         case res {
-          Ok(actor.Continue(next_state, _selector)) -> {
+          Ok(Continue(next_state, _selector)) -> {
             let assert Ok(Nil) =
               transport.set_opts(state.transport, state.socket, [
                 options.ActiveMode(options.Once),
               ])
             actor.continue(LoopState(..state, state: next_state))
           }
-          Ok(actor.Stop(_reason)) -> {
-            actor.stop()
-            // actor.Stop(reason)
-          }
+          Ok(Stop(process.Normal)) -> actor.stop()
+          Ok(Stop(process.Abnormal(reason))) -> actor.stop_abnormal(reason)
+          Ok(Stop(process.Killed)) ->
+            actor.stop_abnormal(dynamic.from("killed"))
           Error(reason) -> {
             logging.log(
               logging.Error,
