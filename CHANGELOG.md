@@ -1,6 +1,6 @@
-# Unreleased
+# v8.0.0-rc1
 
-- Require `stdlib` >= 0.50
+- Require `stdlib` >= 0.59
 - Support `gleam_erlang` and `gleam_otp` v1
 - Add `supervised` and `supervised_ssl` methods for integrating into a
 supervisor
