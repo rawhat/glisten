@@ -166,6 +166,31 @@ pub fn stop_abnormal(reason: String) -> Next(user_state, user_message) {
   AbnormalStop(reason)
 }
 
+@internal
+pub fn convert_next(
+  next: Next(state, user_message),
+) -> handler.Next(state, user_message) {
+  case next {
+    Continue(state, selector) -> handler.Continue(state, selector)
+    NormalStop -> handler.NormalStop
+    AbnormalStop(reason) -> handler.AbnormalStop(reason)
+  }
+}
+
+@internal
+pub fn map_selector(
+  next: Next(state, user_message),
+  mapper: fn(user_message) -> other_message,
+) -> Next(state, other_message) {
+  case next {
+    Continue(state, Some(selector)) ->
+      Continue(state, Some(process.map_selector(selector, mapper)))
+    Continue(state, None) -> Continue(state, None)
+    AbnormalStop(reason) -> AbnormalStop(reason)
+    NormalStop -> NormalStop
+  }
+}
+
 /// This is the shape of the function you need to provide for the `handler`
 /// argument to `serve(_ssl)`.
 pub type Loop(state, user_message) =

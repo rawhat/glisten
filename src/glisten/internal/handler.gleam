@@ -56,7 +56,7 @@ pub type Connection(user_message) {
   )
 }
 
-pub opaque type Next(user_state, user_message) {
+pub type Next(user_state, user_message) {
   Continue(state: user_state, selector: Option(Selector(user_message)))
   NormalStop
   AbnormalStop(reason: String)
