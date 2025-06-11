@@ -1,6 +1,6 @@
 -module(glisten_ffi).
 
--export([parse_address/1]).
+-export([parse_address/1, rescue/1]).
 
 parse_address(Address) ->
   case inet:parse_address(Address) of
@@ -10,4 +10,12 @@ parse_address(Address) ->
       {ok, {ip_v6, A, B, C, D, E, F, G, H}};
     {error, _Reason} ->
       {error, nil}
+  end.
+
+rescue(Func) ->
+  try
+    Res = Func(),
+    {ok, Res}
+  catch
+    Anything -> {error, Anything}
   end.

@@ -45,12 +45,14 @@ pub fn close(socket: Socket) -> Result(Nil, SocketReason)
 pub fn do_shutdown(socket: Socket, write: Atom) -> Result(Nil, SocketReason)
 
 pub fn shutdown(socket: Socket) -> Result(Nil, SocketReason) {
-  let assert Ok(write) = atom.from_string("write")
-  do_shutdown(socket, write)
+  do_shutdown(socket, atom.create("write"))
 }
 
 @external(erlang, "glisten_ssl_ffi", "set_opts")
 fn do_set_opts(socket: Socket, opts: List(Dynamic)) -> Result(Nil, Nil)
+
+@external(erlang, "gleam@function", "identity")
+fn from(value: a) -> Dynamic
 
 /// Update the optons for a socket (mutates the socket)
 pub fn set_opts(
@@ -60,7 +62,7 @@ pub fn set_opts(
   opts
   |> options.to_dict
   |> dict.to_list
-  |> list.map(dynamic.from)
+  |> list.map(from)
   |> do_set_opts(socket, _)
 }
 

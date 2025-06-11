@@ -42,6 +42,9 @@ pub type TcpOption {
   Ip(Interface)
 }
 
+@external(erlang, "gleam@function", "identity")
+fn from(value: a) -> Dynamic
+
 pub fn to_dict(options: List(TcpOption)) -> Dict(Dynamic, Dynamic) {
   let opt_decoder = {
     use opt <- decode.field(0, decode.dynamic)
@@ -49,25 +52,23 @@ pub fn to_dict(options: List(TcpOption)) -> Dict(Dynamic, Dynamic) {
     decode.success(#(opt, value))
   }
 
-  let active = atom.create_from_string("active")
-  let ip = atom.create_from_string("ip")
+  let active = atom.create("active")
+  let ip = atom.create("ip")
 
   options
   |> list.map(fn(opt) {
     case opt {
-      ActiveMode(Passive) -> dynamic.from(#(active, False))
-      ActiveMode(Active) -> dynamic.from(#(active, True))
-      ActiveMode(Count(n)) -> dynamic.from(#(active, n))
-      ActiveMode(Once) ->
-        dynamic.from(#(active, atom.create_from_string("once")))
-      Ip(Address(IpV4(a, b, c, d))) ->
-        dynamic.from(#(ip, dynamic.from(#(a, b, c, d))))
+      ActiveMode(Passive) -> from(#(active, False))
+      ActiveMode(Active) -> from(#(active, True))
+      ActiveMode(Count(n)) -> from(#(active, n))
+      ActiveMode(Once) -> from(#(active, atom.create("once")))
+      Ip(Address(IpV4(a, b, c, d))) -> from(#(ip, from(#(a, b, c, d))))
       Ip(Address(IpV6(a, b, c, d, e, f, g, h))) ->
-        dynamic.from(#(ip, dynamic.from(#(a, b, c, d, e, f, g, h))))
-      Ip(Any) -> dynamic.from(#(ip, atom.create_from_string("any")))
-      Ip(Loopback) -> dynamic.from(#(ip, atom.create_from_string("loopback")))
-      Ipv6 -> dynamic.from(atom.create_from_string("inet6"))
-      other -> dynamic.from(other)
+        from(#(ip, from(#(a, b, c, d, e, f, g, h))))
+      Ip(Any) -> from(#(ip, atom.create("any")))
+      Ip(Loopback) -> from(#(ip, atom.create("loopback")))
+      Ipv6 -> from(atom.create("inet6"))
+      other -> from(other)
     }
   })
   |> list.filter_map(decode.run(_, opt_decoder))
@@ -93,10 +94,10 @@ pub fn merge_with_defaults(options: List(TcpOption)) -> List(TcpOption) {
   |> to_dict
   |> dict.merge(overrides)
   |> dict.to_list
-  |> list.map(dynamic.from)
+  |> list.map(from)
   |> fn(opts) {
     case has_ipv6 {
-      True -> [dynamic.from(atom.create_from_string("inet6")), ..opts]
+      True -> [from(atom.create("inet6")), ..opts]
       _ -> opts
     }
   }

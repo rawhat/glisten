@@ -3,7 +3,6 @@ import gleam/dynamic/decode
 import gleam/erlang/process
 import gleam/list
 import gleam/option.{None}
-import gleam/otp/actor
 import gleeunit
 import gleeunit/should
 import glisten.{IpV6, Packet}
@@ -23,20 +22,17 @@ type Msg {
 pub fn it_echoes_messages_test() {
   let client_subject = process.new_subject()
   let _server =
-    process.start(
-      fn() {
-        let assert Ok(listener) =
-          tcp.listen(54_321, [options.ActiveMode(options.Passive)])
-        let Nil = process.send(client_subject, Connected)
-        let assert Ok(socket) = tcp.accept(listener)
-        let loop = fn() {
-          let assert Ok(msg) = tcp.receive_timeout(socket, 0, 200)
-          process.send(client_subject, Response(msg))
-        }
-        loop()
-      },
-      False,
-    )
+    process.spawn(fn() {
+      let assert Ok(listener) =
+        tcp.listen(54_321, [options.ActiveMode(options.Passive)])
+      let Nil = process.send(client_subject, Connected)
+      let assert Ok(socket) = tcp.accept(listener)
+      let loop = fn() {
+        let assert Ok(msg) = tcp.receive_timeout(socket, 0, 200)
+        process.send(client_subject, Response(msg))
+      }
+      loop()
+    })
 
   let assert Ok(Connected) = process.receive(client_subject, 200)
 
@@ -51,36 +47,33 @@ pub fn it_echoes_messages_test() {
 pub fn it_accepts_from_the_pool_test() {
   let client_sender = process.new_subject()
   let assert Ok(_server) =
-    glisten.handler(fn(_conn) { #(Nil, None) }, fn(msg, state, conn) {
+    glisten.handler(fn(_conn) { #(Nil, None) }, fn(state, msg, conn) {
       let assert Packet(msg) = msg
       let assert Ok(_) = tcp.send(conn.socket, bytes_tree.from_bit_array(msg))
-      actor.continue(state)
+      glisten.continue(state)
     })
     |> glisten.with_pool_size(1)
     |> glisten.serve(54_321)
 
   let _client_process =
-    process.start(
-      fn() {
-        let client_selector =
-          process.selecting_anything(
-            process.new_selector(),
-            decode.run(_, {
-              use tcp <- decode.field(0, decode.dynamic)
-              use port <- decode.field(1, decode.dynamic)
-              use msg <- decode.field(2, decode.bit_array)
-              decode.success(#(tcp, port, msg))
-            }),
-          )
-        let client = tcp_client.connect(54_321)
-        let assert Ok(_) =
-          tcp.send(client, bytes_tree.from_bit_array(<<"hi mom":utf8>>))
-        let msg = process.select(client_selector, 200)
-        let assert Ok(Ok(#(_tcp, _port, msg))) = msg
-        process.send(client_sender, msg)
-      },
-      False,
-    )
+    process.spawn(fn() {
+      let client_selector =
+        process.select_other(
+          process.new_selector(),
+          decode.run(_, {
+            use tcp <- decode.field(0, decode.dynamic)
+            use port <- decode.field(1, decode.dynamic)
+            use msg <- decode.field(2, decode.bit_array)
+            decode.success(#(tcp, port, msg))
+          }),
+        )
+      let client = tcp_client.connect(54_321)
+      let assert Ok(_) =
+        tcp.send(client, bytes_tree.from_bit_array(<<"hi mom":utf8>>))
+      let msg = process.selector_receive(client_selector, 200)
+      let assert Ok(Ok(#(_tcp, _port, msg))) = msg
+      process.send(client_sender, msg)
+    })
 
   let assert Ok(msg) = process.receive(client_sender, 200)
 

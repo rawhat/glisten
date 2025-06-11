@@ -5,7 +5,6 @@ import gleam/erlang/process
 import gleam/int
 import gleam/io
 import gleam/option.{None}
-import gleam/otp/actor
 import gleam/string
 import glisten.{Packet}
 import logging
@@ -14,16 +13,16 @@ import logging
 fn logger_update_primary_config(config: Dict(Atom, Atom)) -> Result(Nil, any)
 
 pub fn main() {
+  let listener_name = process.new_name("glisten_listener")
+
   logging.configure()
   let _ =
     logger_update_primary_config(
-      dict.from_list([
-        #(atom.create_from_string("level"), atom.create_from_string("debug")),
-      ]),
+      dict.from_list([#(atom.create("level"), atom.create("debug"))]),
     )
 
-  let assert Ok(server) =
-    glisten.handler(fn(_conn) { #(Nil, None) }, fn(msg, state, conn) {
+  let assert Ok(_server) =
+    glisten.handler(fn(_conn) { #(Nil, None) }, fn(state, msg, conn) {
       let assert Ok(info) = glisten.get_client_info(conn)
       logging.log(
         logging.Info,
@@ -34,13 +33,13 @@ pub fn main() {
       )
       let assert Packet(msg) = msg
       let assert Ok(_) = glisten.send(conn, bytes_tree.from_bit_array(msg))
-      actor.continue(state)
+      glisten.continue(state)
     })
     |> glisten.bind("localhost")
     |> glisten.with_ipv6
-    |> glisten.start_server(0)
+    |> glisten.serve_with_listener_name(0, listener_name)
 
-  let assert Ok(info) = glisten.get_server_info(server, 5000)
+  let info = glisten.get_server_info(listener_name, 5000)
 
   io.println(
     "Listening on "

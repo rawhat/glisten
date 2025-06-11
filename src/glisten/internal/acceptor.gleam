@@ -1,9 +1,9 @@
-import gleam/erlang/process.{type Selector, type Subject, Abnormal}
-import gleam/function
+import gleam/erlang/process.{type Selector, type Subject}
 import gleam/list
 import gleam/option.{type Option, None}
 import gleam/otp/actor
-import gleam/otp/supervisor
+import gleam/otp/static_supervisor as supervisor
+import gleam/otp/supervision
 import gleam/result
 import gleam/string
 import glisten/internal/handler.{
@@ -36,79 +36,70 @@ pub type AcceptorState {
 /// Worker process that handles `accept`ing connections and starts a new process
 /// which receives the messages from the socket
 pub fn start(
-  pool: Pool(user_message, data),
-  listener: Subject(listener.Message),
-) -> Result(Subject(AcceptorMessage), actor.StartError) {
-  actor.start_spec(actor.Spec(
-    init: fn() {
-      let subject = process.new_subject()
-      let selector =
-        process.new_selector()
-        |> process.selecting(subject, function.identity)
+  pool: Pool(data, user_message),
+  listener_name: process.Name(listener.Message),
+) -> Result(actor.Started(Subject(AcceptorMessage)), actor.StartError) {
+  actor.new_with_initialiser(1000, fn(subject) {
+    let listener = process.named_subject(listener_name)
 
-      process.try_call(listener, listener.Info, 750)
-      |> result.map(fn(state) {
-        process.send(subject, AcceptConnection(state.listen_socket))
-        actor.Ready(AcceptorState(subject, None, pool.transport), selector)
-      })
-      |> result.map_error(fn(err) {
-        actor.Failed("Failed to read listen socket: " <> string.inspect(err))
-      })
-      |> result.unwrap_both
-    },
-    // TODO:  rethink this value, probably...
-    init_timeout: 1000,
-    loop: fn(msg, state) {
-      let AcceptorState(sender, ..) = state
-      case msg {
-        AcceptConnection(listener) -> {
-          let res = {
-            use sock <- result.then(
-              transport.accept(state.transport, listener)
-              |> result.replace_error(AcceptError),
+    let state = process.call(listener, 750, listener.Info)
+    process.send(subject, AcceptConnection(state.listen_socket))
+
+    AcceptorState(subject, None, pool.transport)
+    |> actor.initialised
+    |> actor.returning(subject)
+    |> actor.selecting(
+      process.new_selector()
+      |> process.select(subject),
+    )
+    |> Ok
+  })
+  |> actor.on_message(fn(state, msg) {
+    let AcceptorState(sender, ..) = state
+    case msg {
+      AcceptConnection(listener) -> {
+        let res = {
+          use sock <- result.then(
+            transport.accept(state.transport, listener)
+            |> result.replace_error(AcceptError),
+          )
+          use start <- result.then(
+            Handler(
+              socket: sock,
+              loop: pool.handler,
+              on_init: pool.on_init,
+              on_close: pool.on_close,
+              transport: pool.transport,
             )
-            use start <- result.then(
-              Handler(
-                socket: sock,
-                loop: pool.handler,
-                on_init: pool.on_init,
-                on_close: pool.on_close,
-                transport: pool.transport,
-              )
-              |> handler.start
-              |> result.replace_error(HandlerError),
+            |> handler.start
+            |> result.replace_error(HandlerError),
+          )
+          transport.controlling_process(state.transport, sock, start.pid)
+          |> result.replace_error(ControlError)
+          |> result.map(fn(_) { process.send(start.data, Internal(Ready)) })
+        }
+        case res {
+          Error(reason) -> {
+            logging.log(
+              logging.Error,
+              "Failed to accept/start handler: " <> string.inspect(reason),
             )
-            sock
-            |> transport.controlling_process(
-              state.transport,
-              _,
-              process.subject_owner(start),
-            )
-            |> result.replace_error(ControlError)
-            |> result.map(fn(_) { process.send(start, Internal(Ready)) })
+            actor.stop_abnormal("Failed to accept/start handler")
           }
-          case res {
-            Error(reason) -> {
-              logging.log(
-                logging.Error,
-                "Failed to accept/start handler: " <> string.inspect(reason),
-              )
-              actor.Stop(Abnormal("Failed to accept/start handler"))
-            }
-            _val -> {
-              actor.send(sender, AcceptConnection(listener))
-              actor.continue(state)
-            }
+          _val -> {
+            actor.send(sender, AcceptConnection(listener))
+            actor.continue(state)
           }
         }
       }
-    },
-  ))
+    }
+  })
+  |> actor.start
 }
 
-pub type Pool(user_message, data) {
+pub type Pool(data, user_message) {
   Pool(
-    handler: Loop(user_message, data),
+    handler: Loop(data, user_message),
     pool_count: Int,
     on_init: fn(Connection(user_message)) ->
       #(data, Option(Selector(user_message))),
@@ -121,36 +112,30 @@ pub type Pool(user_message, data) {
 ///
 /// Runs `loop_fn` on ever message received
 pub fn start_pool(
-  pool: Pool(user_message, data),
+  pool: Pool(data, user_message),
   transport: Transport,
   port: Int,
   options: List(TcpOption),
-  return: Subject(Subject(listener.Message)),
-) -> Result(Subject(supervisor.Message), actor.StartError) {
-  supervisor.start_spec(supervisor.Spec(
-    argument: Nil,
-    // TODO:  i think these might need some tweaking
-    max_frequency: 100,
-    frequency_period: 1,
-    init: fn(children) {
-      let acceptors = list.range(from: 0, to: pool.pool_count)
-      supervisor.add(
-        children,
-        supervisor.worker(fn(_arg) {
-          listener.start(port, transport, options)
-          |> result.map(fn(subj) {
-            process.send(return, subj)
-            subj
-          })
-        })
-          |> supervisor.returning(fn(_prev, listener) { listener }),
-      )
-      |> list.fold(acceptors, _, fn(children, _index) {
+  listener_name: process.Name(listener.Message),
+) -> Result(actor.Started(supervisor.Supervisor), actor.StartError) {
+  let acceptors = list.range(from: 0, to: pool.pool_count)
+  supervisor.new(supervisor.OneForOne)
+  |> supervisor.add(
+    supervision.worker(fn() {
+      listener.start(port, transport, options, listener_name)
+    }),
+  )
+  |> supervisor.add(
+    supervision.supervisor(fn() {
+      supervisor.new(supervisor.OneForOne)
+      |> list.fold(acceptors, _, fn(sup, _index) {
         supervisor.add(
-          children,
-          supervisor.worker(fn(listener) { start(pool, listener) }),
+          sup,
+          supervision.worker(fn() { start(pool, listener_name) }),
         )
       })
-    },
-  ))
+      |> supervisor.start
+    }),
+  )
+  |> supervisor.start
 }

@@ -31,7 +31,7 @@ pub fn main() {
     glisten.handler(fn(_conn) { #(Nil, None) }, fn(msg, state, conn) {
       let assert Packet(msg) = msg
       let assert Ok(_) = glisten.send(conn, bytes_tree.from_bit_array(msg))
-      actor.continue(state)
+      glisten.continue(state)
     })
     // NOTE:  By default, `glisten` will listen on the loopback interface.  If
     // you want to listen on all interfaces, pass the following.  You can also
@@ -75,7 +75,6 @@ But you can also drop down to the lower level listen/accept flow if you'd prefer
 to manage connections yourself, or only handle a small number at a time.
 
 ```gleam
-import gleam/io
 import gleam/result
 import glisten/socket/options.{ActiveMode, Passive}
 import glisten/tcp
@@ -84,7 +83,7 @@ pub fn main() {
   use listener <- result.then(tcp.listen(8000, [ActiveMode(Passive)]))
   use socket <- result.then(tcp.accept(listener))
   use msg <- result.then(tcp.receive(socket, 0))
-  io.debug(#("got a msg", msg))
+  echo #("got a msg", msg)
 
   Ok(Nil)
 }
