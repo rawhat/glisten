@@ -1,7 +1,9 @@
 # Unreleased
 
 - Support `gleam_erlang` and `gleam_otp` v1
-- Some major API changes (TODO)
+- Add `supervised` and `supervised_ssl` methods for integrating into a
+supervisor
+- Add `glisten.Next` methods to mirror `gleam_otp` structures
 
 # v7.0.1
 
