@@ -22,7 +22,7 @@ pub fn main() {
     )
 
   let assert Ok(_server) =
-    glisten.handler(fn(_conn) { #(Nil, None) }, fn(state, msg, conn) {
+    glisten.new(fn(_conn) { #(Nil, None) }, fn(state, msg, conn) {
       let assert Ok(info) = glisten.get_client_info(conn)
       logging.log(
         logging.Info,
@@ -35,12 +35,8 @@ pub fn main() {
       let assert Ok(_) = glisten.send(conn, bytes_tree.from_bit_array(msg))
       glisten.continue(state)
     })
-    |> glisten.serve_ssl_with_listener_name(
-      0,
-      certfile: "localhost.crt",
-      keyfile: "localhost.key",
-      listener_name: listener_name,
-    )
+    |> glisten.with_ssl(certfile: "localhost.crt", keyfile: "localhost.key")
+    |> glisten.serve_with_listener_name(0, listener_name)
 
   let info = glisten.get_server_info(listener_name, 5000)
 
