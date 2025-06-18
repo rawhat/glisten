@@ -28,7 +28,7 @@ import glisten.{Packet}
 
 pub fn main() {
   let assert Ok(_) =
-    glisten.handler(fn(_conn) { #(Nil, None) }, fn(msg, state, conn) {
+    glisten.new(fn(_conn) { #(Nil, None) }, fn(msg, state, conn) {
       let assert Packet(msg) = msg
       let assert Ok(_) = glisten.send(conn, bytes_tree.from_bit_array(msg))
       glisten.continue(state)
@@ -37,7 +37,7 @@ pub fn main() {
     // you want to listen on all interfaces, pass the following.  You can also
     // specify other interface values, including IPv6 addresses.
     // |> glisten.bind("0.0.0.0")
-    |> glisten.serve(3000)
+    |> glisten.start(3000)
 
   process.sleep_forever()
 }
@@ -58,15 +58,14 @@ import glisten/ssl
 
 pub fn main() {
   let assert Ok(_) =
-    glisten.handler(
+    glisten.new(
       // omitted
     )
-    |> glisten.serve_ssl(
-      // Passing labeled arguments for clarity
-      port: 8080,
+    |> glisten.with_ssl(
       certfile: "/path/to/server.crt",
       keyfile: "/path/to/server.key",
     )
+    |> glisten.start(port: 8080)
   process.sleep_forever()
 }
 ```

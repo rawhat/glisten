@@ -192,7 +192,7 @@ pub fn map_selector(
 }
 
 /// This is the shape of the function you need to provide for the `handler`
-/// argument to `serve(_ssl)`.
+/// argument to `start`.
 pub type Loop(state, user_message) =
   fn(state, Message(user_message), Connection(user_message)) ->
     Next(state, Message(user_message))
@@ -346,17 +346,17 @@ pub fn with_ssl(
 }
 
 /// Start the TCP server with the given handler on the provided port
-pub fn serve(
+pub fn start(
   builder: Builder(state, user_message),
   port: Int,
 ) -> Result(actor.Started(supervisor.Supervisor), actor.StartError) {
   let listener_name = process.new_name("glisten_listener")
 
-  serve_with_listener_name(builder, port, listener_name)
+  start_with_listener_name(builder, port, listener_name)
 }
 
 @internal
-pub fn serve_with_listener_name(
+pub fn start_with_listener_name(
   builder: Builder(state, user_message),
   port: Int,
   listener_name: process.Name(listener.Message),
@@ -401,5 +401,5 @@ pub fn supervised(
   handler: Builder(state, user_message),
   port: Int,
 ) -> ChildSpecification(supervisor.Supervisor) {
-  supervision.supervisor(fn() { serve(handler, port) })
+  supervision.supervisor(fn() { start(handler, port) })
 }

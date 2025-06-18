@@ -36,7 +36,7 @@ pub fn main() {
       glisten.continue(state)
     })
     |> glisten.with_ssl(certfile: "localhost.crt", keyfile: "localhost.key")
-    |> glisten.serve_with_listener_name(0, listener_name)
+    |> glisten.start_with_listener_name(0, listener_name)
 
   let info = glisten.get_server_info(listener_name, 5000)
 
