@@ -23,6 +23,10 @@ pub type Interface {
   Loopback
 }
 
+pub type SslCerts {
+  CertKeyFiles(certfile: String, keyfile: String)
+}
+
 /// Options for the TCP socket
 pub type TcpOption {
   Backlog(Int)
@@ -34,8 +38,7 @@ pub type TcpOption {
   ActiveMode(ActiveState)
   Mode(SocketMode)
   // TODO:  Probably should adjust the type here to only allow this for SSL
-  Certfile(String)
-  Keyfile(String)
+  CertKeyConfig(SslCerts)
   AlpnPreferredProtocols(List(String))
   Ipv6
   Buffer(Int)
@@ -68,6 +71,16 @@ pub fn to_dict(options: List(TcpOption)) -> Dict(Dynamic, Dynamic) {
       Ip(Any) -> from(#(ip, atom.create("any")))
       Ip(Loopback) -> from(#(ip, atom.create("loopback")))
       Ipv6 -> from(atom.create("inet6"))
+      CertKeyConfig(CertKeyFiles(certfile, keyfile)) -> {
+        from(
+          #(atom.create("certs_keys"), [
+            dict.from_list([
+              #(atom.create("certfile"), certfile),
+              #(atom.create("keyfile"), keyfile),
+            ]),
+          ]),
+        )
+      }
       other -> from(other)
     }
   })

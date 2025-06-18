@@ -15,7 +15,7 @@ import glisten/internal/listener
 import glisten/socket.{
   type Socket as InternalSocket, type SocketReason as InternalSocketReason,
 }
-import glisten/socket/options.{Certfile, Keyfile}
+import glisten/socket/options
 import glisten/transport.{type Transport}
 
 /// Your provided loop function will receive these message types as the
@@ -197,8 +197,8 @@ pub type Loop(state, user_message) =
   fn(state, Message(user_message), Connection(user_message)) ->
     Next(state, Message(user_message))
 
-pub opaque type Handler(state, user_message) {
-  Handler(
+pub opaque type Builder(state, user_message) {
+  Builder(
     interface: options.Interface,
     on_init: fn(Connection(user_message)) ->
       #(state, Option(Selector(user_message))),
@@ -207,6 +207,7 @@ pub opaque type Handler(state, user_message) {
     pool_size: Int,
     http2_support: Bool,
     ipv6_support: Bool,
+    ssl_options: Option(options.SslCerts),
   )
 }
 
@@ -264,12 +265,12 @@ fn convert_on_init(
 /// Create a new handler for each connection.  The required arguments mirror the
 /// `actor.start` API from `gleam_otp`.  The default pool is 10 accceptor
 /// processes.
-pub fn handler(
+pub fn new(
   on_init: fn(Connection(user_message)) ->
     #(state, Option(Selector(user_message))),
   loop: Loop(state, user_message),
-) -> Handler(state, user_message) {
-  Handler(
+) -> Builder(state, user_message) {
+  Builder(
     interface: options.Loopback,
     on_init: on_init,
     loop: loop,
@@ -277,23 +278,24 @@ pub fn handler(
     pool_size: 10,
     http2_support: False,
     ipv6_support: False,
+    ssl_options: None,
   )
 }
 
 /// Adds a function to the handler to be called when the connection is closed.
 pub fn with_close(
-  handler: Handler(state, user_message),
+  builder: Builder(state, user_message),
   on_close: fn(state) -> Nil,
-) -> Handler(state, user_message) {
-  Handler(..handler, on_close: Some(on_close))
+) -> Builder(state, user_message) {
+  Builder(..builder, on_close: Some(on_close))
 }
 
 /// Modify the size of the acceptor pool
 pub fn with_pool_size(
-  handler: Handler(state, user_message),
+  builder: Builder(state, user_message),
   size: Int,
-) -> Handler(state, user_message) {
-  Handler(..handler, pool_size: size)
+) -> Builder(state, user_message) {
+  Builder(..builder, pool_size: size)
 }
 
 /// Sets the ALPN supported protocols to include HTTP/2.  It's currently being
@@ -301,9 +303,9 @@ pub fn with_pool_size(
 /// definitely do not need it.
 @internal
 pub fn with_http2(
-  handler: Handler(state, user_message),
-) -> Handler(state, user_message) {
-  Handler(..handler, http2_support: True)
+  builder: Builder(state, user_message),
+) -> Builder(state, user_message) {
+  Builder(..builder, http2_support: True)
 }
 
 /// This sets the interface for `glisten` to listen on. It accepts the following
@@ -311,9 +313,9 @@ pub fn with_http2(
 /// IPv6 addresses (i.e. "::1"). If an invalid value is provided, this will
 /// panic.
 pub fn bind(
-  handler: Handler(state, user_message),
+  builder: Builder(state, user_message),
   interface: String,
-) -> Handler(state, user_message) {
+) -> Builder(state, user_message) {
   let address = case interface, parse_address(charlist.from_string(interface)) {
     "0.0.0.0", _ -> options.Any
     "localhost", _ | "127.0.0.1", _ -> options.Loopback
@@ -321,7 +323,7 @@ pub fn bind(
     _, Error(_nil) ->
       panic as "Invalid interface provided:  must be a valid IPv4/IPv6 address, or \"localhost\""
   }
-  Handler(..handler, interface: address)
+  Builder(..builder, interface: address)
 }
 
 /// By default, `glisten` listens on `localhost` only over IPv4.  With an IPv4
@@ -329,110 +331,75 @@ pub fn bind(
 /// interface.  If it is not supported, your application will crash.  If you
 /// call this with an IPv6 interface specified, it will have no effect.
 pub fn with_ipv6(
-  handler: Handler(state, user_message),
-) -> Handler(state, user_message) {
-  Handler(..handler, ipv6_support: True)
+  builder: Builder(state, user_message),
+) -> Builder(state, user_message) {
+  Builder(..builder, ipv6_support: True)
+}
+
+/// To use TLS, provide a path to a certficate and key file.
+pub fn with_ssl(
+  builder: Builder(state, user_message),
+  certfile cert: String,
+  keyfile key: String,
+) -> Builder(state, user_message) {
+  Builder(..builder, ssl_options: Some(options.CertKeyFiles(cert, key)))
 }
 
 /// Start the TCP server with the given handler on the provided port
 pub fn serve(
-  handler: Handler(state, user_message),
+  builder: Builder(state, user_message),
   port: Int,
 ) -> Result(actor.Started(supervisor.Supervisor), actor.StartError) {
   let listener_name = process.new_name("glisten_listener")
 
-  serve_with_listener_name(handler, port, listener_name)
+  serve_with_listener_name(builder, port, listener_name)
 }
 
 @internal
 pub fn serve_with_listener_name(
-  handler: Handler(state, user_message),
+  builder: Builder(state, user_message),
   port: Int,
   listener_name: process.Name(listener.Message),
 ) -> Result(actor.Started(supervisor.Supervisor), actor.StartError) {
-  let options = case handler.ipv6_support {
-    True -> [options.Ip(handler.interface), options.Ipv6]
-    False -> [options.Ip(handler.interface)]
+  let options =
+    [options.Ip(builder.interface)]
+    |> list.append(case builder.ipv6_support {
+      True -> [options.Ipv6]
+      False -> []
+    })
+    |> list.append(case builder.ssl_options {
+      Some(opts) -> [options.CertKeyConfig(opts)]
+      _ -> []
+    })
+    |> list.append(case builder.ssl_options, builder.http2_support {
+      Some(_), True -> [options.AlpnPreferredProtocols(["h2", "http/1.1"])]
+      Some(_), False -> [options.AlpnPreferredProtocols(["http/1.1"])]
+      None, _ -> []
+    })
+
+  let transport = case builder.ssl_options {
+    Some(_) -> transport.Ssl
+    _ -> transport.Tcp
   }
 
   Pool(
-    handler: convert_loop(handler.loop),
-    pool_count: handler.pool_size,
-    on_init: convert_on_init(handler.on_init),
-    on_close: handler.on_close,
-    transport: transport.Tcp,
+    handler: convert_loop(builder.loop),
+    pool_count: builder.pool_size,
+    on_init: convert_on_init(builder.on_init),
+    on_close: builder.on_close,
+    transport:,
   )
-  |> acceptor.start_pool(transport.Tcp, port, options, listener_name)
-}
-
-/// Start the SSL server with the given handler on the provided port.  The key
-/// and cert files must be provided, valid, and readable by the current user.
-pub fn serve_ssl(
-  handler: Handler(state, user_message),
-  port port: Int,
-  certfile certfile: String,
-  keyfile keyfile: String,
-) -> Result(actor.Started(supervisor.Supervisor), actor.StartError) {
-  let listener_name = process.new_name("glisten_listener")
-  serve_ssl_with_listener_name(handler, port, certfile, keyfile, listener_name)
-}
-
-@internal
-pub fn serve_ssl_with_listener_name(
-  handler: Handler(state, user_message),
-  port port: Int,
-  certfile certfile: String,
-  keyfile keyfile: String,
-  listener_name listener_name: process.Name(listener.Message),
-) -> Result(actor.Started(supervisor.Supervisor), actor.StartError) {
-  let base_options = [
-    options.Ip(handler.interface),
-    Certfile(certfile),
-    Keyfile(keyfile),
-  ]
-  let default_options = case handler.ipv6_support {
-    True -> [options.Ipv6, ..base_options]
-    False -> base_options
-  }
-  let protocol_options = case handler.http2_support {
-    True -> [options.AlpnPreferredProtocols(["h2", "http/1.1"])]
-    False -> [options.AlpnPreferredProtocols(["http/1.1"])]
-  }
-
-  Pool(
-    handler: convert_loop(handler.loop),
-    pool_count: handler.pool_size,
-    on_init: convert_on_init(handler.on_init),
-    on_close: handler.on_close,
-    transport: transport.Ssl,
-  )
-  |> acceptor.start_pool(
-    transport.Ssl,
-    port,
-    list.flatten([default_options, protocol_options]),
-    listener_name,
-  )
+  |> acceptor.start_pool(transport, port, options, listener_name)
 }
 
 @external(erlang, "glisten_ffi", "parse_address")
 fn parse_address(value: Charlist) -> Result(ip_address, Nil)
 
 /// Helper method for building a child specification for use in a supervision
-/// tree.  This will use the regular TCP server.
+/// tree.
 pub fn supervised(
-  handler: Handler(state, user_message),
+  handler: Builder(state, user_message),
   port: Int,
 ) -> ChildSpecification(supervisor.Supervisor) {
   supervision.supervisor(fn() { serve(handler, port) })
-}
-
-/// Helper method for building a child specification for use in a supervision
-/// tree.  This will use an SSL server with the provided certificate / key.
-pub fn supervised_ssl(
-  handler: Handler(state, user_message),
-  port port: Int,
-  certfile certfile: String,
-  keyfile keyfile: String,
-) -> ChildSpecification(supervisor.Supervisor) {
-  supervision.supervisor(fn() { serve_ssl(handler, port, certfile, keyfile) })
 }
