@@ -47,13 +47,13 @@ pub fn it_echoes_messages_test() {
 pub fn it_accepts_from_the_pool_test() {
   let client_sender = process.new_subject()
   let assert Ok(_server) =
-    glisten.handler(fn(_conn) { #(Nil, None) }, fn(state, msg, conn) {
+    glisten.new(fn(_conn) { #(Nil, None) }, fn(state, msg, conn) {
       let assert Packet(msg) = msg
       let assert Ok(_) = tcp.send(conn.socket, bytes_tree.from_bit_array(msg))
       glisten.continue(state)
     })
     |> glisten.with_pool_size(1)
-    |> glisten.serve(54_321)
+    |> glisten.start(54_321)
 
   let _client_process =
     process.spawn(fn() {
