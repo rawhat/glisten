@@ -57,7 +57,7 @@ pub fn get_server_info(
 pub type Connection(user_message) {
   Connection(
     socket: Socket,
-    /// This provides a uniform interface for both TCP and SSL methods.
+    /// This provides a uniform interface for both TCP and TLS methods.
     transport: Transport,
     subject: Subject(handler.Message(user_message)),
   )
@@ -207,7 +207,7 @@ pub opaque type Builder(state, user_message) {
     pool_size: Int,
     http2_support: Bool,
     ipv6_support: Bool,
-    ssl_options: Option(options.SslCerts),
+    tls_options: Option(options.TlsCerts),
   )
 }
 
@@ -278,7 +278,7 @@ pub fn new(
     pool_size: 10,
     http2_support: False,
     ipv6_support: False,
-    ssl_options: None,
+    tls_options: None,
   )
 }
 
@@ -337,12 +337,12 @@ pub fn with_ipv6(
 }
 
 /// To use TLS, provide a path to a certficate and key file.
-pub fn with_ssl(
+pub fn with_tls(
   builder: Builder(state, user_message),
   certfile cert: String,
   keyfile key: String,
 ) -> Builder(state, user_message) {
-  Builder(..builder, ssl_options: Some(options.CertKeyFiles(cert, key)))
+  Builder(..builder, tls_options: Some(options.CertKeyFiles(cert, key)))
 }
 
 /// Start the TCP server with the given handler on the provided port
@@ -367,17 +367,17 @@ pub fn start_with_listener_name(
       True -> [options.Ipv6]
       False -> []
     })
-    |> list.append(case builder.ssl_options {
+    |> list.append(case builder.tls_options {
       Some(opts) -> [options.CertKeyConfig(opts)]
       _ -> []
     })
-    |> list.append(case builder.ssl_options, builder.http2_support {
+    |> list.append(case builder.tls_options, builder.http2_support {
       Some(_), True -> [options.AlpnPreferredProtocols(["h2", "http/1.1"])]
       Some(_), False -> [options.AlpnPreferredProtocols(["http/1.1"])]
       None, _ -> []
     })
 
-  let transport = case builder.ssl_options {
+  let transport = case builder.tls_options {
     Some(_) -> transport.Ssl
     _ -> transport.Tcp
   }

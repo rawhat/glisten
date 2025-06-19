@@ -69,7 +69,7 @@ pub fn set_opts(
 @external(erlang, "ssl", "handshake")
 pub fn handshake(socket: Socket) -> Result(Socket, Nil)
 
-/// Start listening over SSL on a port with the given options
+/// Start listening over TLS on a port with the given options
 pub fn listen(
   port: Int,
   options: List(options.TcpOption),

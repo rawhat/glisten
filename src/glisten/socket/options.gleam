@@ -23,7 +23,7 @@ pub type Interface {
   Loopback
 }
 
-pub type SslCerts {
+pub type TlsCerts {
   CertKeyFiles(certfile: String, keyfile: String)
 }
 
@@ -37,8 +37,8 @@ pub type TcpOption {
   Reuseaddr(Bool)
   ActiveMode(ActiveState)
   Mode(SocketMode)
-  // TODO:  Probably should adjust the type here to only allow this for SSL
-  CertKeyConfig(SslCerts)
+  // TODO:  Probably should adjust the type here to only allow this for TLS
+  CertKeyConfig(TlsCerts)
   AlpnPreferredProtocols(List(String))
   Ipv6
   Buffer(Int)

@@ -43,25 +43,23 @@ pub fn main() {
 }
 ```
 
-SSL is also handled using the `glisten.{serve_ssl}` method.  This requires a
+TLS is also handled using the `glisten.with_tls` method.  This requires a
 certificate and key file path.  The rest of the handler flow remains unchanged.
 
 `glisten` doesn't provide a public API for connected clients.  In order to hook
 into the socket lifecycle, you can establish some functions which are called
 for the opening and closing of the socket.  An example is provided below.
 
-To serve over SSL:
+To serve over TLS:
 
 ```gleam
 // ...
-import glisten/ssl
-
 pub fn main() {
   let assert Ok(_) =
     glisten.new(
       // omitted
     )
-    |> glisten.with_ssl(
+    |> glisten.with_tls(
       certfile: "/path/to/server.crt",
       keyfile: "/path/to/server.key",
     )

@@ -35,7 +35,7 @@ pub fn main() {
       let assert Ok(_) = glisten.send(conn, bytes_tree.from_bit_array(msg))
       glisten.continue(state)
     })
-    |> glisten.with_ssl(certfile: "localhost.crt", keyfile: "localhost.key")
+    |> glisten.with_tls(certfile: "localhost.crt", keyfile: "localhost.key")
     |> glisten.start_with_listener_name(0, listener_name)
 
   let info = glisten.get_server_info(listener_name, 5000)
