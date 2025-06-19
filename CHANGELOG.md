@@ -1,3 +1,7 @@
+# v8.0.0
+
+- Refactor API for TLS / starting server
+
 # v8.0.0-rc1
 
 - Require `stdlib` >= 0.59
