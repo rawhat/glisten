@@ -23,12 +23,11 @@ Then place this code in `src/<your_project>.gleam`:
 import gleam/bytes_tree
 import gleam/erlang/process
 import gleam/option.{None}
-import gleam/otp/actor
 import glisten.{Packet}
 
 pub fn main() {
   let assert Ok(_) =
-    glisten.new(fn(_conn) { #(Nil, None) }, fn(msg, state, conn) {
+    glisten.new(fn(_conn) { #(Nil, None) }, fn(state, msg, conn) {
       let assert Packet(msg) = msg
       let assert Ok(_) = glisten.send(conn, bytes_tree.from_bit_array(msg))
       glisten.continue(state)
