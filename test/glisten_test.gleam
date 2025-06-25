@@ -4,7 +4,6 @@ import gleam/erlang/process
 import gleam/list
 import gleam/option.{None}
 import gleeunit
-import gleeunit/should
 import glisten.{IpV6, Packet}
 import glisten/socket/options
 import glisten/tcp
@@ -41,7 +40,7 @@ pub fn it_echoes_messages_test() {
     tcp.send(client, bytes_tree.from_bit_array(<<"hi mom":utf8>>))
   let assert Ok(Response(resp)) = process.receive(client_subject, 200)
 
-  should.equal(resp, <<"hi mom":utf8>>)
+  assert resp == <<"hi mom":utf8>>
 }
 
 pub fn it_accepts_from_the_pool_test() {
@@ -77,7 +76,7 @@ pub fn it_accepts_from_the_pool_test() {
 
   let assert Ok(msg) = process.receive(client_sender, 200)
 
-  should.equal(msg, <<"hi mom":utf8>>)
+  assert msg == <<"hi mom":utf8>>
 }
 
 pub fn ip_address_to_string_test() {
@@ -90,6 +89,5 @@ pub fn ip_address_to_string_test() {
     #(IpV6(0x2001, 0xdb8, 0, 0, 0, 0, 2, 1), "2001:db8::2:1"),
   ])
 
-  glisten.ip_address_to_string(ip)
-  |> should.equal(expected)
+  assert glisten.ip_address_to_string(ip) == expected
 }
