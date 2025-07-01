@@ -177,7 +177,7 @@ pub fn peername(
     Tcp -> tcp.peername(socket)
     Ssl -> ssl.peername(socket)
   }
-  |> result.then(fn(pair) {
+  |> result.try(fn(pair) {
     let #(ip_address, port) = pair
     decode.run(ip_address, decode_ip())
     |> result.map(fn(ip) { #(ip, port) })
@@ -204,7 +204,7 @@ pub fn get_socket_opts(
 
 pub fn set_buffer_size(transport: Transport, socket: Socket) -> Result(Nil, Nil) {
   get_socket_opts(transport, socket, [atom.create("recbuf")])
-  |> result.then(fn(p) {
+  |> result.try(fn(p) {
     case p {
       [#(_buffer, value)] ->
         value
@@ -213,7 +213,7 @@ pub fn set_buffer_size(transport: Transport, socket: Socket) -> Result(Nil, Nil)
       _ -> Error(Nil)
     }
   })
-  |> result.then(fn(value) {
+  |> result.try(fn(value) {
     set_opts(transport, socket, [options.Buffer(value)])
   })
 }
@@ -226,7 +226,7 @@ pub fn sockname(
     Tcp -> tcp.sockname(socket)
     Ssl -> ssl.sockname(socket)
   }
-  |> result.then(fn(pair) {
+  |> result.try(fn(pair) {
     let #(maybe_ip, port) = pair
     maybe_ip
     |> decode.run(decode_ip())

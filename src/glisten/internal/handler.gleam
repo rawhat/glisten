@@ -185,7 +185,7 @@ pub fn start(
         state.socket
         |> transport.handshake(state.transport, _)
         |> result.replace_error("Failed to handshake socket")
-        |> result.then(fn(_ok) {
+        |> result.try(fn(_ok) {
           let _ =
             transport.set_buffer_size(state.transport, state.socket)
             |> result.map_error(fn(err) {
@@ -197,7 +197,7 @@ pub fn start(
             })
           Ok(Nil)
         })
-        |> result.then(fn(_ok) {
+        |> result.try(fn(_ok) {
           transport.set_opts(state.transport, state.socket, [
             options.ActiveMode(options.Once),
           ])
