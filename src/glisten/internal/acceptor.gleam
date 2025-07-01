@@ -59,11 +59,11 @@ pub fn start(
     case msg {
       AcceptConnection(listener) -> {
         let res = {
-          use sock <- result.then(
+          use sock <- result.try(
             transport.accept(state.transport, listener)
             |> result.replace_error(AcceptError),
           )
-          use start <- result.then(
+          use start <- result.try(
             Handler(
               socket: sock,
               loop: pool.handler,

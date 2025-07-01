@@ -6,9 +6,9 @@ import logging
 pub fn main() {
   logging.configure()
 
-  use listener <- result.then(tcp.listen(8000, [ActiveMode(Passive)]))
-  use socket <- result.then(tcp.accept(listener))
-  use msg <- result.then(tcp.receive(socket, 0))
+  use listener <- result.try(tcp.listen(8000, [ActiveMode(Passive)]))
+  use socket <- result.try(tcp.accept(listener))
+  use msg <- result.try(tcp.receive(socket, 0))
   echo msg
 
   Ok(Nil)
