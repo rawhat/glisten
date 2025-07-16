@@ -1,3 +1,7 @@
+# v8.0.1
+
+- Remove some deprecated functions
+
 # v8.0.0
 
 - Refactor API for TLS / starting server
