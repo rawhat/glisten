@@ -19,7 +19,7 @@ import glisten/socket/options
 import glisten/transport.{type Transport}
 
 /// Your provided loop function will receive these message types as the
-/// first argument.
+/// second argument.
 pub type Message(user_message) {
   /// These are messages received from the socket
   Packet(BitArray)
