@@ -10,7 +10,7 @@ extra_applications = ["ssl"]
 
 [dependencies]
 gleam_stdlib = ">= 0.59.0 and < 1.0.0"
-gleam_otp = ">= 1.0.0 and < 2.0.0"
+gleam_otp = { git = "https://github.com/gleam-lang/otp", ref = "factory-supervisor" }
 gleam_erlang = ">= 1.0.0 and < 2.0.0"
 telemetry = ">= 1.2.1 and < 2.0.0"
 logging = ">= 1.3.0 and < 2.0.0"
