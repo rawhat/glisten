@@ -361,6 +361,7 @@ pub fn start_with_listener_name(
   port: Int,
   listener_name: process.Name(listener.Message),
 ) -> Result(actor.Started(supervisor.Supervisor), actor.StartError) {
+  let connection_supervisor = process.new_name("glisten_connection_supervisor")
   let options =
     [options.Ip(builder.interface)]
     |> list.append(case builder.ipv6_support {
@@ -384,6 +385,7 @@ pub fn start_with_listener_name(
 
   Pool(
     handler: convert_loop(builder.loop),
+    name: connection_supervisor,
     pool_count: builder.pool_size,
     on_init: convert_on_init(builder.on_init),
     on_close: builder.on_close,

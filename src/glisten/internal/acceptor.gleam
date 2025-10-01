@@ -2,6 +2,7 @@ import gleam/erlang/process.{type Selector, type Subject}
 import gleam/list
 import gleam/option.{type Option, None}
 import gleam/otp/actor
+import gleam/otp/factory_supervisor as factory
 import gleam/otp/static_supervisor as supervisor
 import gleam/otp/supervision
 import gleam/result
@@ -38,6 +39,9 @@ pub type AcceptorState {
 pub fn start(
   pool: Pool(data, user_message),
   listener_name: process.Name(listener.Message),
+  connection_supervisor: process.Name(
+    factory.Message(Socket, Subject(handler.Message(user_message))),
+  ),
 ) -> Result(actor.Started(Subject(AcceptorMessage)), actor.StartError) {
   actor.new_with_initialiser(1000, fn(subject) {
     let listener = process.named_subject(listener_name)
@@ -63,20 +67,17 @@ pub fn start(
             transport.accept(state.transport, listener)
             |> result.replace_error(AcceptError),
           )
-          use start <- result.try(
-            Handler(
-              socket: sock,
-              loop: pool.handler,
-              on_init: pool.on_init,
-              on_close: pool.on_close,
-              transport: pool.transport,
-            )
-            |> handler.start
-            |> result.replace_error(HandlerError),
-          )
-          transport.controlling_process(state.transport, sock, start.pid)
-          |> result.replace_error(ControlError)
-          |> result.map(fn(_) { process.send(start.data, Internal(Ready)) })
+          let connection_factory = factory.get_by_name(connection_supervisor)
+          case factory.start_child(connection_factory, sock) {
+            Ok(start) -> {
+              transport.controlling_process(state.transport, sock, start.pid)
+              |> result.replace_error(ControlError)
+              |> result.map(fn(_) { process.send(start.data, Internal(Ready)) })
+            }
+            Error(_reason) -> {
+              Error(HandlerError)
+            }
+          }
         }
         case res {
           Error(reason) -> {
@@ -101,6 +102,9 @@ pub type Pool(data, user_message) {
   Pool(
     handler: Loop(data, user_message),
     pool_count: Int,
+    name: process.Name(
+      factory.Message(Socket, Subject(handler.Message(user_message))),
+    ),
     on_init: fn(Connection(user_message)) ->
       #(data, Option(Selector(user_message))),
     on_close: Option(fn(data) -> Nil),
@@ -131,11 +135,24 @@ pub fn start_pool(
       |> list.fold(acceptors, _, fn(sup, _index) {
         supervisor.add(
           sup,
-          supervision.worker(fn() { start(pool, listener_name) }),
+          supervision.worker(fn() { start(pool, listener_name, pool.name) }),
         )
       })
       |> supervisor.start
     }),
+  )
+  |> supervisor.add(
+    factory.worker_child(fn(socket) {
+      handler.start(Handler(
+        socket:,
+        loop: pool.handler,
+        on_init: pool.on_init,
+        on_close: pool.on_close,
+        transport: pool.transport,
+      ))
+    })
+    |> factory.named(pool.name)
+    |> factory.supervised,
   )
   |> supervisor.start
 }
