@@ -182,30 +182,26 @@ pub fn start(
           Error(err) -> actor.stop_abnormal(string.inspect(err))
         }
       Internal(Ready) ->
-        state.socket
-        |> transport.handshake(state.transport, _)
-        |> result.replace_error("Failed to handshake socket")
-        |> result.try(fn(_ok) {
-          let _ =
-            transport.set_buffer_size(state.transport, state.socket)
-            |> result.map_error(fn(err) {
-              logging.log(
-                logging.Warning,
-                "Failed to read `recbuf` size, using default: "
-                  <> string.inspect(err),
-              )
-            })
-          Ok(Nil)
-        })
-        |> result.try(fn(_ok) {
-          transport.set_opts(state.transport, state.socket, [
-            options.ActiveMode(options.Once),
-          ])
-          |> result.replace_error("Failed to set socket active")
-        })
-        |> result.replace(actor.continue(state))
-        |> result.map_error(actor.stop_abnormal)
-        |> result.unwrap_both
+        case transport.handshake(state.transport, state.socket) {
+          Error(_) -> actor.stop_abnormal("Failed to handshake socket")
+          Ok(_socket) -> {
+            case transport.set_buffer_size(state.transport, state.socket) {
+              Ok(_) -> Nil
+              Error(err) -> {
+                let err =
+                  "Failed to read `recbuf` size, using default: "
+                  <> string.inspect(err)
+                logging.log(logging.Warning, err)
+              }
+            }
+
+            let options = [options.ActiveMode(options.Once)]
+            case transport.set_opts(state.transport, state.socket, options) {
+              Ok(_) -> actor.continue(state)
+              Error(_) -> actor.stop_abnormal("Failed to set socket active")
+            }
+          }
+        }
       User(msg) -> {
         let msg = Custom(msg)
         let res = rescue(fn() { handler.loop(state.state, msg, connection) })
