@@ -152,6 +152,7 @@ pub fn start_pool(
       ))
     })
     |> factory.named(pool.name)
+    |> factory.restart_strategy(supervision.Temporary)
     |> factory.supervised,
   )
   |> supervisor.start
