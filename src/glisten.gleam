@@ -5,6 +5,7 @@ import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/otp/actor
+import gleam/otp/factory_supervisor as factory
 import gleam/otp/static_supervisor as supervisor
 import gleam/otp/supervision.{type ChildSpecification}
 import gleam/result
@@ -208,6 +209,12 @@ pub opaque type Builder(state, user_message) {
     http2_support: Bool,
     ipv6_support: Bool,
     tls_options: Option(options.TlsCerts),
+    listener_name: Option(process.Name(listener.Message)),
+    connection_factory_name: Option(
+      process.Name(
+        factory.Message(Socket, Subject(handler.Message(user_message))),
+      ),
+    ),
   )
 }
 
@@ -279,6 +286,8 @@ pub fn new(
     http2_support: False,
     ipv6_support: False,
     tls_options: None,
+    listener_name: None,
+    connection_factory_name: None,
   )
 }
 
@@ -345,23 +354,36 @@ pub fn with_tls(
   Builder(..builder, tls_options: Some(options.CertKeyFiles(cert, key)))
 }
 
+@internal
+pub fn with_listener_name(
+  builder: Builder(state, user_message),
+  listener_name: process.Name(listener.Message),
+) -> Builder(state, user_message) {
+  Builder(..builder, listener_name: Some(listener_name))
+}
+
+@internal
+pub fn with_connection_factory_name(
+  builder: Builder(state, user_message),
+  connection_factory_name: process.Name(
+    factory.Message(socket.Socket, Subject(handler.Message(user_message))),
+  ),
+) -> Builder(state, user_message) {
+  Builder(..builder, connection_factory_name: Some(connection_factory_name))
+}
+
 /// Start the TCP server with the given handler on the provided port
 pub fn start(
   builder: Builder(state, user_message),
   port: Int,
 ) -> Result(actor.Started(supervisor.Supervisor), actor.StartError) {
-  let listener_name = process.new_name("glisten_listener")
-
-  start_with_listener_name(builder, port, listener_name)
-}
-
-@internal
-pub fn start_with_listener_name(
-  builder: Builder(state, user_message),
-  port: Int,
-  listener_name: process.Name(listener.Message),
-) -> Result(actor.Started(supervisor.Supervisor), actor.StartError) {
-  let connection_supervisor = process.new_name("glisten_connection_supervisor")
+  let listener_name =
+    option.unwrap(builder.listener_name, process.new_name("glisten_listener"))
+  let connection_supervisor =
+    option.unwrap(
+      builder.connection_factory_name,
+      process.new_name("glisten_connection_supervisor"),
+    )
   let options =
     [options.Ip(builder.interface)]
     |> list.append(case builder.ipv6_support {
