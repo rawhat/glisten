@@ -74,6 +74,9 @@ pub fn start(
             |> handler.start
             |> result.replace_error(HandlerError),
           )
+          // Unlink the handler from the acceptor so that handler crashes
+          // (e.g., TLS handshake failures) don't bring down the acceptor
+          process.unlink(start.pid)
           transport.controlling_process(state.transport, sock, start.pid)
           |> result.replace_error(ControlError)
           |> result.map(fn(_) { process.send(start.data, Internal(Ready)) })
