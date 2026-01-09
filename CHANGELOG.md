@@ -1,3 +1,7 @@
+# v8.0.2
+
+- Remove some more deprecated functions
+
 # v8.0.1
 
 - Remove some deprecated functions
