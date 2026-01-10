@@ -1,3 +1,7 @@
+# v8.0.3
+
+- Back out breaking change from release
+
 # v8.0.2
 
 - Remove some more deprecated functions
