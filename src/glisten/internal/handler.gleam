@@ -207,11 +207,14 @@ pub fn start(
         let res = rescue(fn() { handler.loop(state.state, msg, connection) })
         case res {
           Ok(Continue(next_state, _selector)) -> {
-            let _ =
+            case
               transport.set_opts(state.transport, state.socket, [
                 options.ActiveMode(options.Once),
               ])
-            actor.continue(LoopState(..state, state: next_state))
+            {
+              Ok(Nil) -> actor.continue(LoopState(..state, state: next_state))
+              Error(Nil) -> actor.stop()
+            }
           }
           Ok(NormalStop) -> actor.stop()
           Ok(AbnormalStop(reason)) -> actor.stop_abnormal(reason)
@@ -229,11 +232,14 @@ pub fn start(
         let res = rescue(fn() { handler.loop(state.state, msg, connection) })
         case res {
           Ok(Continue(next_state, _selector)) -> {
-            let _ =
+            case
               transport.set_opts(state.transport, state.socket, [
                 options.ActiveMode(options.Once),
               ])
-            actor.continue(LoopState(..state, state: next_state))
+            {
+              Ok(Nil) -> actor.continue(LoopState(..state, state: next_state))
+              Error(Nil) -> actor.stop()
+            }
           }
           Ok(NormalStop) -> actor.stop()
           Ok(AbnormalStop(reason)) -> actor.stop_abnormal(reason)
