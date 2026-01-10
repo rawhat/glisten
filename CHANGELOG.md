@@ -1,3 +1,7 @@
+# Unreleased
+
+- Remove assertion when trying to re-enable active mode
+
 # v9.0.0-rc1
 
 - Rename `get_client_info` to `get_connection_info`

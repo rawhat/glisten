@@ -207,7 +207,7 @@ pub fn start(
         let res = rescue(fn() { handler.loop(state.state, msg, connection) })
         case res {
           Ok(Continue(next_state, _selector)) -> {
-            let assert Ok(Nil) =
+            let _ =
               transport.set_opts(state.transport, state.socket, [
                 options.ActiveMode(options.Once),
               ])
@@ -229,7 +229,7 @@ pub fn start(
         let res = rescue(fn() { handler.loop(state.state, msg, connection) })
         case res {
           Ok(Continue(next_state, _selector)) -> {
-            let assert Ok(Nil) =
+            let _ =
               transport.set_opts(state.transport, state.socket, [
                 options.ActiveMode(options.Once),
               ])
