@@ -123,7 +123,7 @@ fn ipv6_zeros(fields, pos, len, max_start, max_len) -> Result(#(Int, Int), Nil) 
 /// Tries to read the IP address and port of a connected client.  It will
 /// return valid IPv4 or IPv6 addresses, attempting to return the most relevant
 /// one for the client.
-pub fn get_connection_info(
+pub fn get_client_info(
   conn: Connection(user_message),
 ) -> Result(ConnectionInfo, Nil) {
   transport.peername(conn.transport, conn.socket)

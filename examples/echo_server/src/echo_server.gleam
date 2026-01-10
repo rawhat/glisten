@@ -23,7 +23,7 @@ pub fn main() {
 
   let assert Ok(_server) =
     glisten.new(fn(_conn) { #(Nil, None) }, fn(state, msg, conn) {
-      let assert Ok(info) = glisten.get_connection_info(conn)
+      let assert Ok(info) = glisten.get_client_info(conn)
       logging.log(
         logging.Info,
         "Client connected at "
