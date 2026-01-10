@@ -1,3 +1,7 @@
+# Unreleased
+
+- Rename `get_client_info` to `get_connection_info`
+
 # v8.0.3
 
 - Back out breaking change from release
