@@ -1,6 +1,7 @@
 # Unreleased
 
 - Rename `get_client_info` to `get_connection_info`
+- Use `gleam/otp/factory_supervisor` module for spawning handler processes
 
 # v8.0.3
 
