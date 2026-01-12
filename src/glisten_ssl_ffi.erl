@@ -16,7 +16,7 @@ set_opts(Socket, Options) ->
     ok ->
       {ok, nil};
     {error, Reason} ->
-      {error, Reason}
+      {error, nil}
   end.
 
 controlling_process(Socket, Pid) ->

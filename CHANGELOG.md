@@ -1,6 +1,7 @@
 # Unreleased
 
 - Remove assertion when trying to re-enable active mode
+- Fix type missmatch for set_opts functions
 
 # v9.0.0-rc1
 
