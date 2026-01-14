@@ -15,7 +15,7 @@ set_opts(Socket, Options) ->
   case ssl:setopts(Socket, Options) of
     ok ->
       {ok, nil};
-    {error, Reason} ->
+    {error, _Reason} ->
       {error, nil}
   end.
 
