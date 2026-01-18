@@ -14,8 +14,8 @@ set_opts(Socket, Options) ->
   case inet:setopts(Socket, Options) of
     ok ->
       {ok, nil};
-    {error, Reason} ->
-      {error, Reason}
+    {error, _Reason} ->
+      {error, nil}
   end.
 
 controlling_process(Socket, Pid) ->
