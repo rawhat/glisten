@@ -3,7 +3,6 @@ import gleam/dict.{type Dict}
 import gleam/dynamic.{type Dynamic}
 import gleam/erlang/atom.{type Atom}
 import gleam/erlang/process.{type Pid}
-import gleam/list
 import glisten/socket.{type ListenSocket, type Socket, type SocketReason}
 import glisten/socket/options.{type TcpOption}
 
@@ -13,7 +12,7 @@ pub fn controlling_process(socket: Socket, pid: Pid) -> Result(Nil, Atom)
 @external(erlang, "gen_tcp", "listen")
 fn do_listen_tcp(
   port: Int,
-  options: List(TcpOption),
+  options: List(options.ErlangTcpOption),
 ) -> Result(ListenSocket, SocketReason)
 
 @external(erlang, "gen_tcp", "accept")
@@ -52,17 +51,18 @@ pub fn shutdown(socket: Socket) -> Result(Nil, SocketReason) {
 }
 
 @external(erlang, "glisten_tcp_ffi", "set_opts")
-fn do_set_opts(socket: Socket, opts: List(Dynamic)) -> Result(Nil, Nil)
-
-@external(erlang, "gleam@function", "identity")
-fn from(value: a) -> Dynamic
+fn do_set_opts(
+  socket: Socket,
+  opts: List(options.ErlangTcpOption),
+) -> Result(Nil, SocketReason)
 
 /// Update the optons for a socket (mutates the socket)
-pub fn set_opts(socket: Socket, opts: List(TcpOption)) -> Result(Nil, Nil) {
+pub fn set_opts(
+  socket: Socket,
+  opts: List(TcpOption),
+) -> Result(Nil, SocketReason) {
   opts
-  |> options.to_dict
-  |> dict.to_list
-  |> list.map(from)
+  |> options.to_erl_options()
   |> do_set_opts(socket, _)
 }
 
@@ -73,6 +73,7 @@ pub fn listen(
 ) -> Result(ListenSocket, SocketReason) {
   opts
   |> options.merge_with_defaults
+  |> options.to_erl_options
   |> do_listen_tcp(port, _)
 }
 
