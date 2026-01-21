@@ -120,7 +120,7 @@ pub fn set_opts(
   transport: Transport,
   socket: Socket,
   opts: List(options.TcpOption),
-) -> Result(Nil, Nil) {
+) -> Result(Nil, SocketReason) {
   case transport {
     Tcp -> tcp.set_opts(socket, opts)
     Ssl -> ssl.set_opts(socket, opts)
@@ -215,6 +215,7 @@ pub fn set_buffer_size(transport: Transport, socket: Socket) -> Result(Nil, Nil)
   })
   |> result.try(fn(value) {
     set_opts(transport, socket, [options.Buffer(value)])
+    |> result.map_error(fn(_) { Nil })
   })
 }
 
