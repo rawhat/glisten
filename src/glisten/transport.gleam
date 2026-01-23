@@ -177,6 +177,7 @@ pub fn peername(
     Tcp -> tcp.peername(socket)
     Ssl -> ssl.peername(socket)
   }
+  |> result.replace_error(Nil)
   |> result.try(fn(pair) {
     let #(ip_address, port) = pair
     decode.run(ip_address, decode_ip())
@@ -200,6 +201,7 @@ pub fn get_socket_opts(
     Tcp -> tcp.get_socket_opts(socket, opts)
     Ssl -> ssl.get_socket_opts(socket, opts)
   }
+  |> result.replace_error(Nil)
 }
 
 pub fn set_buffer_size(transport: Transport, socket: Socket) -> Result(Nil, Nil) {

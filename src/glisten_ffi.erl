@@ -24,10 +24,10 @@ rescue(Func) ->
 to_erl_tcp_options(Options) ->
   lists:map(fun(A) -> to_erl_tcp_option(A) end, Options).
 
+to_erl_tcp_option({active_mode, once}) -> {active, once};
 to_erl_tcp_option({active_mode, passive}) -> {active, false};
 to_erl_tcp_option({active_mode, active}) -> {active, true};
 to_erl_tcp_option({active_mode, {count, N}}) -> {active, N};
-to_erl_tcp_option({active_mode, once}) -> {active, once};
 to_erl_tcp_option({ip, {address, {ip_v4, A, B, C, D}}}) ->
   {ip, {A, B, C, D}};
 to_erl_tcp_option({ip, {address, {ip_v6, A, B, C, D, E, F, G, H}}}) ->
@@ -44,7 +44,7 @@ merge_type_list(Original, Override) ->
   KeepFromOriginal =
   lists:foldl(
     fun(Value, Accu) -> insert_value(Value, Accu, NewKeys) end,
-    [], 
+    [],
     Original),
   KeepFromOriginal ++ Override.
 
