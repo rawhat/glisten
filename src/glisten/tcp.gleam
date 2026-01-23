@@ -85,13 +85,13 @@ pub fn handshake(socket: Socket) -> Result(Socket, Nil) {
 pub fn negotiated_protocol(socket: Socket) -> a
 
 @external(erlang, "inet", "peername")
-pub fn peername(socket: Socket) -> Result(#(Dynamic, Int), Nil)
+pub fn peername(socket: Socket) -> Result(#(Dynamic, Int), SocketReason)
 
 @external(erlang, "inet", "getopts")
 pub fn get_socket_opts(
   socket: Socket,
   opts: List(Atom),
-) -> Result(List(#(Atom, Dynamic)), Nil)
+) -> Result(List(#(Atom, Dynamic)), SocketReason)
 
 @external(erlang, "inet", "sockname")
 pub fn sockname(socket: ListenSocket) -> Result(#(Dynamic, Int), SocketReason)

@@ -170,6 +170,56 @@ pub fn start(
         sender: state.sender,
       )
     case msg {
+      Internal(ReceiveMessage(msg)) -> {
+        let msg = Packet(msg)
+        let res = rescue(fn() { handler.loop(state.state, msg, connection) })
+        case res {
+          Ok(Continue(next_state, _selector)) -> {
+            case
+              transport.set_opts(state.transport, state.socket, [
+                options.ActiveMode(options.Once),
+              ])
+            {
+              Ok(Nil) -> actor.continue(LoopState(..state, state: next_state))
+              Error(_) -> actor.stop()
+            }
+          }
+          Ok(NormalStop) -> actor.stop()
+          Ok(AbnormalStop(reason)) -> actor.stop_abnormal(reason)
+          Error(reason) -> {
+            logging.log(
+              logging.Error,
+              "Caught error in user handler: " <> string.inspect(reason),
+            )
+            actor.continue(state)
+          }
+        }
+      }
+      User(msg) -> {
+        let msg = Custom(msg)
+        let res = rescue(fn() { handler.loop(state.state, msg, connection) })
+        case res {
+          Ok(Continue(next_state, _selector)) -> {
+            case
+              transport.set_opts(state.transport, state.socket, [
+                options.ActiveMode(options.Once),
+              ])
+            {
+              Ok(Nil) -> actor.continue(LoopState(..state, state: next_state))
+              Error(_) -> actor.stop()
+            }
+          }
+          Ok(NormalStop) -> actor.stop()
+          Ok(AbnormalStop(reason)) -> actor.stop_abnormal(reason)
+          Error(reason) -> {
+            logging.log(
+              logging.Error,
+              "Caught error in user handler: " <> string.inspect(reason),
+            )
+            actor.continue(state)
+          }
+        }
+      }
       Internal(Closed) | Internal(Close) ->
         case transport.close(state.transport, state.socket) {
           Ok(Nil) -> {
@@ -181,15 +231,6 @@ pub fn start(
           }
           Error(err) -> actor.stop_abnormal(string.inspect(err))
         }
-      Internal(Passive) -> {
-        let options = [
-          options.ActiveMode(options.Count(no_of_packages_before_passive)),
-        ]
-        case transport.set_opts(state.transport, state.socket, options) {
-          Ok(_) -> actor.continue(state)
-          Error(_) -> actor.stop_abnormal("Failed to set socket active")
-        }
-      }
       Internal(Ready) ->
         case transport.handshake(state.transport, state.socket) {
           Error(_) -> actor.stop_abnormal("Failed to handshake socket")
@@ -204,49 +245,20 @@ pub fn start(
               }
             }
 
-            let options = [
-              options.ActiveMode(options.Count(no_of_packages_before_passive)),
-            ]
+            let options = [options.ActiveMode(options.Once)]
             case transport.set_opts(state.transport, state.socket, options) {
               Ok(_) -> actor.continue(state)
               Error(_) -> actor.stop_abnormal("Failed to set socket active")
             }
           }
         }
-      User(msg) -> {
-        let msg = Custom(msg)
-        let res = rescue(fn() { handler.loop(state.state, msg, connection) })
-        case res {
-          Ok(Continue(next_state, _selector)) -> {
-            actor.continue(LoopState(..state, state: next_state))
-          }
-          Ok(NormalStop) -> actor.stop()
-          Ok(AbnormalStop(reason)) -> actor.stop_abnormal(reason)
-          Error(reason) -> {
-            logging.log(
-              logging.Error,
-              "Caught error in user handler: " <> string.inspect(reason),
-            )
-            actor.continue(state)
-          }
-        }
-      }
-      Internal(ReceiveMessage(msg)) -> {
-        let msg = Packet(msg)
-        let res = rescue(fn() { handler.loop(state.state, msg, connection) })
-        case res {
-          Ok(Continue(next_state, _selector)) -> {
-            actor.continue(LoopState(..state, state: next_state))
-          }
-          Ok(NormalStop) -> actor.stop()
-          Ok(AbnormalStop(reason)) -> actor.stop_abnormal(reason)
-          Error(reason) -> {
-            logging.log(
-              logging.Error,
-              "Caught error in user handler: " <> string.inspect(reason),
-            )
-            actor.continue(state)
-          }
+      Internal(Passive) -> {
+        let options = [
+          options.ActiveMode(options.Count(no_of_packages_before_passive)),
+        ]
+        case transport.set_opts(state.transport, state.socket, options) {
+          Ok(_) -> actor.continue(state)
+          Error(_) -> actor.stop_abnormal("Failed to set socket active")
         }
       }
       Internal(SocketError(reason)) ->

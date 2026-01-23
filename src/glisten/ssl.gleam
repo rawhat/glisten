@@ -80,7 +80,7 @@ pub fn listen(
 pub fn negotiated_protocol(socket: Socket) -> Result(String, String)
 
 @external(erlang, "ssl", "peername")
-pub fn peername(socket: Socket) -> Result(#(Dynamic, Int), Nil)
+pub fn peername(socket: Socket) -> Result(#(Dynamic, Int), SocketReason)
 
 @external(erlang, "ssl", "sockname")
 pub fn sockname(socket: ListenSocket) -> Result(#(Dynamic, Int), SocketReason)
@@ -89,4 +89,4 @@ pub fn sockname(socket: ListenSocket) -> Result(#(Dynamic, Int), SocketReason)
 pub fn get_socket_opts(
   socket: Socket,
   opts: List(Atom),
-) -> Result(List(#(Atom, Dynamic)), Nil)
+) -> Result(List(#(Atom, Dynamic)), SocketReason)
