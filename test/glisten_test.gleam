@@ -91,3 +91,25 @@ pub fn ip_address_to_string_test() {
 
   assert glisten.ip_address_to_string(ip) == expected
 }
+
+pub fn merge_type_lists_test() {
+  let default_list = options.default_options
+  let merge_with = [
+    options.ActiveMode(options.Count(10)),
+    options.CertKeyConfig(options.CertKeyFiles(
+      certfile: "hello.crt",
+      keyfile: "world.key",
+    )),
+  ]
+  assert [
+      options.Mode(options.Binary),
+      options.Reuseaddr(True),
+      options.SendTimeoutClose(True),
+      options.SendTimeout(30_000),
+      options.Nodelay(True),
+      options.Backlog(1024),
+      options.ActiveMode(options.Count(10)),
+      options.CertKeyConfig(options.CertKeyFiles("hello.crt", "world.key")),
+    ]
+    == options.merge_type_list(default_list, merge_with)
+}
