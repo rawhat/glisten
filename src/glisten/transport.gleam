@@ -120,7 +120,7 @@ pub fn set_opts(
   transport: Transport,
   socket: Socket,
   opts: List(options.TcpOption),
-) -> Result(Nil, Nil) {
+) -> Result(Nil, SocketReason) {
   case transport {
     Tcp -> tcp.set_opts(socket, opts)
     Ssl -> ssl.set_opts(socket, opts)
@@ -177,6 +177,7 @@ pub fn peername(
     Tcp -> tcp.peername(socket)
     Ssl -> ssl.peername(socket)
   }
+  |> result.replace_error(Nil)
   |> result.try(fn(pair) {
     let #(ip_address, port) = pair
     decode.run(ip_address, decode_ip())
@@ -200,6 +201,7 @@ pub fn get_socket_opts(
     Tcp -> tcp.get_socket_opts(socket, opts)
     Ssl -> ssl.get_socket_opts(socket, opts)
   }
+  |> result.replace_error(Nil)
 }
 
 pub fn set_buffer_size(transport: Transport, socket: Socket) -> Result(Nil, Nil) {
@@ -215,6 +217,7 @@ pub fn set_buffer_size(transport: Transport, socket: Socket) -> Result(Nil, Nil)
   })
   |> result.try(fn(value) {
     set_opts(transport, socket, [options.Buffer(value)])
+    |> result.map_error(fn(_) { Nil })
   })
 }
 

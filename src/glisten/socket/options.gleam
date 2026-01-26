@@ -1,9 +1,3 @@
-import gleam/dict.{type Dict}
-import gleam/dynamic.{type Dynamic}
-import gleam/dynamic/decode
-import gleam/erlang/atom
-import gleam/list
-
 /// Mode for the socket.  Currently `list` is not supported
 pub type SocketMode {
   Binary
@@ -11,9 +5,13 @@ pub type SocketMode {
 
 /// Mapping to the `{active, _}` option
 pub type ActiveState {
+  /// The server acknowledges every package.
   Once
+  /// Not used by server - for use with low level `tcp.receive`.
   Passive
+  /// The server will receive `n` packages before activating again.
   Count(Int)
+  /// Connection is always active, no flow control.
   Active
 }
 
@@ -29,13 +27,20 @@ pub type TlsCerts {
 
 /// Options for the TCP socket
 pub type TcpOption {
+  /// Default 1024
   Backlog(Int)
+  /// Default True
   Nodelay(Bool)
   Linger(#(Bool, Int))
+  /// Default 30_000
   SendTimeout(Int)
+  /// Default True
   SendTimeoutClose(Bool)
+  /// Default True
   Reuseaddr(Bool)
+  /// Default Passive for low level and Once for server.
   ActiveMode(ActiveState)
+  /// Default Binary
   Mode(SocketMode)
   // TODO:  Probably should adjust the type here to only allow this for TLS
   CertKeyConfig(TlsCerts)
@@ -45,48 +50,10 @@ pub type TcpOption {
   Ip(Interface)
 }
 
-@external(erlang, "gleam@function", "identity")
-fn from(value: a) -> Dynamic
+pub type ErlangTcpOption
 
-pub fn to_dict(options: List(TcpOption)) -> Dict(Dynamic, Dynamic) {
-  let opt_decoder = {
-    use opt <- decode.field(0, decode.dynamic)
-    use value <- decode.field(1, decode.dynamic)
-    decode.success(#(opt, value))
-  }
-
-  let active = atom.create("active")
-  let ip = atom.create("ip")
-
-  options
-  |> list.map(fn(opt) {
-    case opt {
-      ActiveMode(Passive) -> from(#(active, False))
-      ActiveMode(Active) -> from(#(active, True))
-      ActiveMode(Count(n)) -> from(#(active, n))
-      ActiveMode(Once) -> from(#(active, atom.create("once")))
-      Ip(Address(IpV4(a, b, c, d))) -> from(#(ip, from(#(a, b, c, d))))
-      Ip(Address(IpV6(a, b, c, d, e, f, g, h))) ->
-        from(#(ip, from(#(a, b, c, d, e, f, g, h))))
-      Ip(Any) -> from(#(ip, atom.create("any")))
-      Ip(Loopback) -> from(#(ip, atom.create("loopback")))
-      Ipv6 -> from(atom.create("inet6"))
-      CertKeyConfig(CertKeyFiles(certfile, keyfile)) -> {
-        from(
-          #(atom.create("certs_keys"), [
-            dict.from_list([
-              #(atom.create("certfile"), certfile),
-              #(atom.create("keyfile"), keyfile),
-            ]),
-          ]),
-        )
-      }
-      other -> from(other)
-    }
-  })
-  |> list.filter_map(decode.run(_, opt_decoder))
-  |> dict.from_list
-}
+@external(erlang, "glisten_ffi", "to_erl_tcp_options")
+pub fn to_erl_options(options: List(TcpOption)) -> List(ErlangTcpOption)
 
 pub const default_options = [
   Backlog(1024),
@@ -98,27 +65,12 @@ pub const default_options = [
   ActiveMode(Passive),
 ]
 
+@external(erlang, "glisten_ffi", "merge_type_list")
+pub fn merge_type_list(original: List(a), override: List(a)) -> List(a)
+
 pub fn merge_with_defaults(options: List(TcpOption)) -> List(TcpOption) {
-  let overrides = to_dict(options)
-
-  let has_ipv6 = list.contains(options, Ipv6)
-
-  default_options
-  |> to_dict
-  |> dict.merge(overrides)
-  |> dict.to_list
-  |> list.map(from)
-  |> fn(opts) {
-    case has_ipv6 {
-      True -> [from(atom.create("inet6")), ..opts]
-      _ -> opts
-    }
-  }
-  |> unsafe_coerce
+  merge_type_list(default_options, options)
 }
-
-@external(erlang, "gleam@function", "identity")
-fn unsafe_coerce(value: a) -> b
 
 pub type IpAddress {
   IpV4(Int, Int, Int, Int)
