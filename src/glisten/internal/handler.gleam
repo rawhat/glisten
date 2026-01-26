@@ -6,11 +6,9 @@ import gleam/otp/actor
 import gleam/result
 import gleam/string
 import glisten/socket.{type Socket, type SocketReason}
-import glisten/socket/options.{type IpAddress}
+import glisten/socket/options.{type ActiveState, type IpAddress}
 import glisten/transport.{type Transport}
 import logging
-
-const no_of_packages_before_passive = 16
 
 @external(erlang, "glisten_ffi", "rescue")
 fn rescue(func: fn() -> anything) -> Result(anything, Dynamic)
@@ -46,6 +44,7 @@ pub type LoopState(state, user_message) {
     sender: Subject(Message(user_message)),
     transport: Transport,
     state: state,
+    active_state: ActiveState,
   )
 }
 
@@ -98,6 +97,7 @@ pub type Handler(state, user_message) {
       #(state, Option(Selector(user_message))),
     on_close: Option(fn(state) -> Nil),
     transport: Transport,
+    active_state: ActiveState,
   )
 }
 
@@ -155,6 +155,7 @@ pub fn start(
       sender: subject,
       transport: handler.transport,
       state: initial_state,
+      active_state: handler.active_state,
     )
     |> actor.initialised()
     |> actor.selecting(selector)
@@ -170,56 +171,6 @@ pub fn start(
         sender: state.sender,
       )
     case msg {
-      Internal(ReceiveMessage(msg)) -> {
-        let msg = Packet(msg)
-        let res = rescue(fn() { handler.loop(state.state, msg, connection) })
-        case res {
-          Ok(Continue(next_state, _selector)) -> {
-            case
-              transport.set_opts(state.transport, state.socket, [
-                options.ActiveMode(options.Once),
-              ])
-            {
-              Ok(Nil) -> actor.continue(LoopState(..state, state: next_state))
-              Error(_) -> actor.stop()
-            }
-          }
-          Ok(NormalStop) -> actor.stop()
-          Ok(AbnormalStop(reason)) -> actor.stop_abnormal(reason)
-          Error(reason) -> {
-            logging.log(
-              logging.Error,
-              "Caught error in user handler: " <> string.inspect(reason),
-            )
-            actor.continue(state)
-          }
-        }
-      }
-      User(msg) -> {
-        let msg = Custom(msg)
-        let res = rescue(fn() { handler.loop(state.state, msg, connection) })
-        case res {
-          Ok(Continue(next_state, _selector)) -> {
-            case
-              transport.set_opts(state.transport, state.socket, [
-                options.ActiveMode(options.Once),
-              ])
-            {
-              Ok(Nil) -> actor.continue(LoopState(..state, state: next_state))
-              Error(_) -> actor.stop()
-            }
-          }
-          Ok(NormalStop) -> actor.stop()
-          Ok(AbnormalStop(reason)) -> actor.stop_abnormal(reason)
-          Error(reason) -> {
-            logging.log(
-              logging.Error,
-              "Caught error in user handler: " <> string.inspect(reason),
-            )
-            actor.continue(state)
-          }
-        }
-      }
       Internal(Closed) | Internal(Close) ->
         case transport.close(state.transport, state.socket) {
           Ok(Nil) -> {
@@ -244,17 +195,77 @@ pub fn start(
                 logging.log(logging.Warning, err)
               }
             }
-
-            let options = [options.ActiveMode(options.Once)]
+            // Note that the active_state must set to Passive at start of
+            // Listener/Accept and not changed until the Ready message is
+            // received.
+            let options = [options.ActiveMode(state.active_state)]
             case transport.set_opts(state.transport, state.socket, options) {
               Ok(_) -> actor.continue(state)
               Error(_) -> actor.stop_abnormal("Failed to set socket active")
             }
           }
         }
+      User(msg) -> {
+        let msg = Custom(msg)
+        let res = rescue(fn() { handler.loop(state.state, msg, connection) })
+        case res {
+          Ok(Continue(next_state, _selector))
+            if state.active_state == options.Once
+          -> {
+            case
+              transport.set_opts(state.transport, state.socket, [
+                options.ActiveMode(options.Once),
+              ])
+            {
+              Ok(Nil) -> actor.continue(LoopState(..state, state: next_state))
+              Error(_) -> actor.stop()
+            }
+          }
+          Ok(Continue(next_state, _selector)) ->
+            actor.continue(LoopState(..state, state: next_state))
+          Ok(NormalStop) -> actor.stop()
+          Ok(AbnormalStop(reason)) -> actor.stop_abnormal(reason)
+          Error(reason) -> {
+            logging.log(
+              logging.Error,
+              "Caught error in user handler: " <> string.inspect(reason),
+            )
+            actor.continue(state)
+          }
+        }
+      }
+      Internal(ReceiveMessage(msg)) -> {
+        let msg = Packet(msg)
+        let res = rescue(fn() { handler.loop(state.state, msg, connection) })
+        case res {
+          Ok(Continue(next_state, _selector))
+            if state.active_state == options.Once
+          -> {
+            case
+              transport.set_opts(state.transport, state.socket, [
+                options.ActiveMode(options.Once),
+              ])
+            {
+              Ok(Nil) -> actor.continue(LoopState(..state, state: next_state))
+              Error(_) -> actor.stop()
+            }
+          }
+          Ok(Continue(next_state, _selector)) ->
+            actor.continue(LoopState(..state, state: next_state))
+          Ok(NormalStop) -> actor.stop()
+          Ok(AbnormalStop(reason)) -> actor.stop_abnormal(reason)
+          Error(reason) -> {
+            logging.log(
+              logging.Error,
+              "Caught error in user handler: " <> string.inspect(reason),
+            )
+            actor.continue(state)
+          }
+        }
+      }
       Internal(Passive) -> {
         let options = [
-          options.ActiveMode(options.Count(no_of_packages_before_passive)),
+          options.ActiveMode(state.active_state),
         ]
         case transport.set_opts(state.transport, state.socket, options) {
           Ok(_) -> actor.continue(state)

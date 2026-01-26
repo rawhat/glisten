@@ -5,9 +5,13 @@ pub type SocketMode {
 
 /// Mapping to the `{active, _}` option
 pub type ActiveState {
+  /// The server acknowledges every package.
   Once
+  /// Not used by server - for use with low level `tcp.receive`.
   Passive
+  /// The server will receive `n` packages before activating again.
   Count(Int)
+  /// Connection is always active, no flow control.
   Active
 }
 
@@ -23,13 +27,20 @@ pub type TlsCerts {
 
 /// Options for the TCP socket
 pub type TcpOption {
+  /// Default 1024
   Backlog(Int)
+  /// Default True
   Nodelay(Bool)
   Linger(#(Bool, Int))
+  /// Default 30_000
   SendTimeout(Int)
+  /// Default True
   SendTimeoutClose(Bool)
+  /// Default True
   Reuseaddr(Bool)
+  /// Default Passive for low level and Once for server.
   ActiveMode(ActiveState)
+  /// Default Binary
   Mode(SocketMode)
   // TODO:  Probably should adjust the type here to only allow this for TLS
   CertKeyConfig(TlsCerts)

@@ -215,6 +215,7 @@ pub opaque type Builder(state, user_message) {
         factory.Message(Socket, Subject(handler.Message(user_message))),
       ),
     ),
+    active_state: options.ActiveState,
   )
 }
 
@@ -288,6 +289,7 @@ pub fn new(
     tls_options: None,
     listener_name: None,
     connection_factory_name: None,
+    active_state: options.Once,
   )
 }
 
@@ -354,6 +356,22 @@ pub fn with_tls(
   Builder(..builder, tls_options: Some(options.CertKeyFiles(cert, key)))
 }
 
+/// Set the server's `ActiveState` for flow control of received packets.
+/// Default is `Once`. Allowed are `Once`, `Active` and `Count(n)` where n > 1.
+pub fn with_active_state(
+  builder: Builder(state, user_message),
+  active_state: options.ActiveState,
+) -> Builder(state, user_message) {
+  case active_state {
+    options.Once | options.Active ->
+      Builder(..builder, active_state: active_state)
+    options.Count(n) if n > 1 -> Builder(..builder, active_state: active_state)
+    options.Count(_) -> panic as "Count shall be greater than 1"
+    options.Passive ->
+      panic as "You cannot set the server's `ActiveState` to `Passive`"
+  }
+}
+
 @internal
 pub fn with_listener_name(
   builder: Builder(state, user_message),
@@ -412,6 +430,7 @@ pub fn start(
     on_init: convert_on_init(builder.on_init),
     on_close: builder.on_close,
     transport:,
+    active_state: builder.active_state,
   )
   |> acceptor.start_pool(transport, port, options, listener_name)
 }
