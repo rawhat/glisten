@@ -109,6 +109,7 @@ pub type Pool(data, user_message) {
       #(data, Option(Selector(user_message))),
     on_close: Option(fn(data) -> Nil),
     transport: Transport,
+    active_state: options.ActiveState,
   )
 }
 
@@ -149,6 +150,7 @@ pub fn start_pool(
         on_init: pool.on_init,
         on_close: pool.on_close,
         transport: pool.transport,
+        active_state: pool.active_state,
       ))
     })
     |> factory.named(pool.name)
