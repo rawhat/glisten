@@ -1,5 +1,5 @@
+import gleam/int
 import gleam/erlang/process.{type Selector, type Subject}
-import gleam/list
 import gleam/option.{type Option, None}
 import gleam/otp/actor
 import gleam/otp/factory_supervisor as factory
@@ -122,7 +122,6 @@ pub fn start_pool(
   options: List(TcpOption),
   listener_name: process.Name(listener.Message),
 ) -> Result(actor.Started(supervisor.Supervisor), actor.StartError) {
-  let acceptors = list.range(from: 0, to: pool.pool_count)
   supervisor.new(supervisor.OneForOne)
   |> supervisor.add(
     supervision.worker(fn() {
@@ -132,7 +131,7 @@ pub fn start_pool(
   |> supervisor.add(
     supervision.supervisor(fn() {
       supervisor.new(supervisor.OneForOne)
-      |> list.fold(acceptors, _, fn(sup, _index) {
+      |> int.range(from: 0, to: pool.pool_count, with: _, run: fn(sup, _index) {
         supervisor.add(
           sup,
           supervision.worker(fn() { start(pool, listener_name, pool.name) }),
