@@ -1,5 +1,5 @@
-import gleam/int
 import gleam/erlang/process.{type Selector, type Subject}
+import gleam/int
 import gleam/option.{type Option, None}
 import gleam/otp/actor
 import gleam/otp/factory_supervisor as factory
