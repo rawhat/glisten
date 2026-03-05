@@ -180,7 +180,7 @@ pub fn start(
             }
             actor.stop()
           }
-          Error(err) -> actor.stop_abnormal(string.inspect(err))
+          Error(err) -> actor.stop_abnormal(socket.reason_to_string(err))
         }
       Internal(Ready) ->
         case transport.handshake(state.transport, state.socket) {
@@ -188,11 +188,8 @@ pub fn start(
           Ok(_socket) -> {
             case transport.set_buffer_size(state.transport, state.socket) {
               Ok(_) -> Nil
-              Error(err) -> {
-                let err =
-                  "Failed to read `recbuf` size, using default: "
-                  <> string.inspect(err)
-                logging.log(logging.Warning, err)
+              Error(_nil) -> {
+                logging.log(logging.Warning, "Failed to read `recbuf` size")
               }
             }
             // Note that the active_state must set to Passive at start of
@@ -273,7 +270,9 @@ pub fn start(
         }
       }
       Internal(SocketError(reason)) ->
-        actor.stop_abnormal("Received socket error " <> string.inspect(reason))
+        actor.stop_abnormal(
+          "Received socket error " <> socket.reason_to_string(reason),
+        )
     }
   })
   |> actor.start()

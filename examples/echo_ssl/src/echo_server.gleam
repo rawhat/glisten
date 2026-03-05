@@ -27,7 +27,7 @@ pub fn main() {
       logging.log(
         logging.Info,
         "Client connected at "
-          <> string.inspect(info.ip_address)
+          <> glisten.ip_address_to_string(info.ip_address)
           <> " at port "
           <> int.to_string(info.port),
       )

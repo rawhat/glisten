@@ -1,3 +1,4 @@
+import gleam/erlang/atom
 import gleam/erlang/process.{type Selector, type Subject}
 import gleam/int
 import gleam/option.{type Option, None}
@@ -21,9 +22,9 @@ pub type AcceptorMessage {
 }
 
 pub type AcceptorError {
-  AcceptError
-  HandlerError
-  ControlError
+  AcceptError(socket.SocketReason)
+  HandlerError(actor.StartError)
+  ControlError(atom.Atom)
 }
 
 pub type AcceptorState {
@@ -65,25 +66,39 @@ pub fn start(
         let res = {
           use sock <- result.try(
             transport.accept(state.transport, listener)
-            |> result.replace_error(AcceptError),
+            |> result.map_error(AcceptError),
           )
           let connection_factory = factory.get_by_name(connection_supervisor)
           case factory.start_child(connection_factory, sock) {
             Ok(start) -> {
               transport.controlling_process(state.transport, sock, start.pid)
-              |> result.replace_error(ControlError)
+              |> result.map_error(ControlError)
               |> result.map(fn(_) { process.send(start.data, Internal(Ready)) })
             }
-            Error(_reason) -> {
-              Error(HandlerError)
+            Error(reason) -> {
+              Error(HandlerError(reason))
             }
           }
         }
         case res {
           Error(reason) -> {
+            let msg = case reason {
+              AcceptError(reason) ->
+                "acceptor failed: " <> socket.reason_to_string(reason)
+              HandlerError(actor.InitTimeout) -> "init timed out"
+              HandlerError(actor.InitFailed(reason)) ->
+                "init failed: " <> reason
+              HandlerError(actor.InitExited(process.Normal)) ->
+                "init exited normally"
+              HandlerError(actor.InitExited(process.Killed)) -> "init killed"
+              HandlerError(actor.InitExited(process.Abnormal(..))) ->
+                "init exited abnormally"
+              ControlError(reason) ->
+                "could not control socket: " <> atom.to_string(reason)
+            }
             logging.log(
               logging.Error,
-              "Failed to accept/start handler: " <> string.inspect(reason),
+              "Failed to accept/start handler: " <> msg,
             )
             actor.stop_abnormal("Failed to accept/start handler")
           }
