@@ -1,10 +1,10 @@
 import gleam/erlang/process.{type Subject}
 import gleam/otp/actor
 import gleam/result
-import gleam/string
 import glisten/socket.{type ListenSocket}
 import glisten/socket/options.{type IpAddress, type TcpOption}
 import glisten/transport.{type Transport}
+import logging
 
 pub type Message {
   Info(caller: Subject(State))
@@ -38,7 +38,11 @@ pub fn start(
       |> actor.returning(subject)
     })
     |> result.map_error(fn(err) {
-      "Failed to start socket listener: " <> string.inspect(err)
+      logging.log(
+        logging.Error,
+        "Failed to start socket listener: " <> socket.reason_to_string(err),
+      )
+      "Failed to start"
     })
   })
   |> actor.on_message(fn(state, msg) {
