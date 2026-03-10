@@ -44,7 +44,6 @@ pub type LoopState(state, user_message) {
     sender: Subject(Message(user_message)),
     transport: Transport,
     state: state,
-    active_state: ActiveState,
   )
 }
 
@@ -155,7 +154,6 @@ pub fn start(
       sender: subject,
       transport: handler.transport,
       state: initial_state,
-      active_state: handler.active_state,
     )
     |> actor.initialised()
     |> actor.selecting(selector)
@@ -195,7 +193,7 @@ pub fn start(
             // Note that the active_state must set to Passive at start of
             // Listener/Accept and not changed until the Ready message is
             // received.
-            let options = [options.ActiveMode(state.active_state)]
+            let options = [options.ActiveMode(handler.active_state)]
             case transport.set_opts(state.transport, state.socket, options) {
               Ok(_) -> actor.continue(state)
               Error(_) -> actor.stop_abnormal("Failed to set socket active")
@@ -207,7 +205,7 @@ pub fn start(
         let res = rescue(fn() { handler.loop(state.state, msg, connection) })
         case res {
           Ok(Continue(next_state, _selector))
-            if state.active_state == options.Once
+            if handler.active_state == options.Once
           -> {
             case
               transport.set_opts(state.transport, state.socket, [
@@ -236,7 +234,7 @@ pub fn start(
         let res = rescue(fn() { handler.loop(state.state, msg, connection) })
         case res {
           Ok(Continue(next_state, _selector))
-            if state.active_state == options.Once
+            if handler.active_state == options.Once
           -> {
             case
               transport.set_opts(state.transport, state.socket, [
@@ -262,7 +260,7 @@ pub fn start(
       }
       Internal(Passive) -> {
         let options = [
-          options.ActiveMode(state.active_state),
+          options.ActiveMode(handler.active_state),
         ]
         case transport.set_opts(state.transport, state.socket, options) {
           Ok(_) -> actor.continue(state)

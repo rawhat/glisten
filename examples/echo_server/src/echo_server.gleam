@@ -5,7 +5,6 @@ import gleam/erlang/process
 import gleam/int
 import gleam/io
 import gleam/option.{None}
-import gleam/string
 import glisten.{Packet}
 import logging
 
