@@ -7,7 +7,6 @@ import gleam/otp/factory_supervisor as factory
 import gleam/otp/static_supervisor as supervisor
 import gleam/otp/supervision
 import gleam/result
-import gleam/string
 import glisten/internal/handler.{
   type Connection, type Loop, Handler, Internal, Ready,
 }

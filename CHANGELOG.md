@@ -1,7 +1,7 @@
-# Unreleased
+# v9.0.0
 
 - Remove assertion when trying to re-enable active mode
-- Fix type missmatch for set_opts functions
+- Fix type mismatch for set_opts functions
 - Remove some `string.inspect` calls and return more useful error messages
 
 # v9.0.0-rc1
