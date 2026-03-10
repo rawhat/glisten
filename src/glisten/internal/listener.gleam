@@ -38,11 +38,10 @@ pub fn start(
       |> actor.returning(subject)
     })
     |> result.map_error(fn(err) {
-      logging.log(
-        logging.Error,
-        "Failed to start socket listener: " <> socket.reason_to_string(err),
-      )
-      "Failed to start"
+      let error_string =
+        "Failed to start socket listener: " <> socket.reason_to_string(err)
+      logging.log(logging.Error, error_string)
+      error_string
     })
   })
   |> actor.on_message(fn(state, msg) {
