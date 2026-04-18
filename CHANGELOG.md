@@ -1,3 +1,7 @@
+# v9.0.1
+
+- Bump `stdlib` to `>=1.0.0`
+
 # v9.0.0
 
 - Remove assertion when trying to re-enable active mode

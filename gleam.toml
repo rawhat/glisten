@@ -1,5 +1,5 @@
 name = "glisten"
-version = "9.0.0"
+version = "9.0.1"
 description = "a shiny Gleam TCP/TLS server"
 licences = ["Apache-2.0"]
 repository = { type = "github", user = "rawhat", repo = "glisten" }
@@ -9,7 +9,7 @@ gleam = ">= 1.11.0"
 extra_applications = ["ssl"]
 
 [dependencies]
-gleam_stdlib = ">= 0.59.0 and < 2.0.0"
+gleam_stdlib = ">= 1.0.0 and < 2.0.0"
 gleam_erlang = ">= 1.0.0 and < 2.0.0"
 logging = ">= 1.3.0 and < 2.0.0"
 gleam_otp = ">= 1.2.0 and < 2.0.0"
