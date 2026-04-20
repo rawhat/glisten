@@ -356,6 +356,26 @@ pub fn with_tls(
   Builder(..builder, tls_options: Some(options.CertKeyFiles(cert, key)))
 }
 
+/// To use TLS, provide in-memory PEM_encoded certificate and key data.
+pub fn with_tls_pem(
+  builder: Builder(state, user_message),
+  cert cert: BitArray,
+  key key: BitArray,
+) -> Builder(state, user_message) {
+  Builder(..builder, tls_options: Some(options.CertKeyPem(cert, key)))
+}
+
+/// To use TLS, provide in-memory DER-encoded certificate and key data. The key 
+/// type must match the encoding of the provided key binary.
+pub fn with_tls_der(
+  builder: Builder(state, user_message),
+  cert cert: BitArray,
+  key_type key_type: options.TlsKeyType,
+  key key: BitArray,
+) -> Builder(state, user_message) {
+  Builder(..builder, tls_options: Some(options.CertKeyDer(cert, key_type, key)))
+}
+
 /// Set the server's `ActiveState` for flow control of received packets.
 /// Default is `Once`. Allowed are `Once`, `Active` and `Count(n)` where n > 1.
 pub fn with_active_state(

@@ -1,3 +1,7 @@
+# Unreleased
+
+- support in-memory `PEM` and `DER` certificates for TLS
+
 # v9.0.1
 
 - Bump `stdlib` to `>=1.0.0`

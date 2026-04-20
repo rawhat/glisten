@@ -21,8 +21,27 @@ pub type Interface {
   Loopback
 }
 
+/// Specifies how TLS certificates and keys are provided to the server
 pub type TlsCerts {
   CertKeyFiles(certfile: String, keyfile: String)
+  /// In-memory PEM-encoded certificate and key.
+  CertKeyPem(cert: BitArray, key: BitArray)
+  /// In-memory DER-encoded certificate and key. The key type must be provided 
+  /// explicitly since it is not embedded in the binary.
+  CertKeyDer(cert: BitArray, key_type: TlsKeyType, key: BitArray)
+}
+
+/// The private key encoding type, required when providing DER-encoded 
+/// certificate and key
+pub type TlsKeyType {
+  /// Traditional RSA key.
+  RsaPrivateKey
+  /// Elliptic curve key.
+  EcPrivateKey
+  /// DSA key.
+  DsaPrivateKey
+  /// PKCS#8 key.
+  PrivateKeyInfo
 }
 
 /// Options for the TCP socket

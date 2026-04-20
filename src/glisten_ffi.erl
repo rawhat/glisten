@@ -37,7 +37,19 @@ to_erl_tcp_option({ip, loopback}) -> {ip, loopback};
 to_erl_tcp_option(ipv6) -> inet6;
 to_erl_tcp_option({cert_key_config, {cert_key_files, CertFile, KeyFile}}) ->
   {certs_keys, [#{certfile => CertFile, keyfile => KeyFile}]};
+to_erl_tcp_option({cert_key_config, {cert_key_pem, Cert, Key}}) ->
+  [{_, DerCert, _}|_] = public_key:pem_decode(Cert),
+  [{KeyType, DerKey, _}|_] = public_key:pem_decode(Key),
+  {certs_keys, [#{cert => [DerCert], key => {KeyType, DerKey}}]};
+to_erl_tcp_option({cert_key_config, {cert_key_der, Cert, KeyType, Key}}) ->
+  ErlKeyType = key_type_to_erl(KeyType),
+  {certs_keys, [#{cert => [Cert], key => {ErlKeyType, Key}}]};
 to_erl_tcp_option(Other) -> Other.
+
+key_type_to_erl(rsa_private_key)  -> 'RSAPrivateKey';
+key_type_to_erl(ec_private_key)   -> 'ECPrivateKey';
+key_type_to_erl(dsa_private_key)  -> 'DSAPrivateKey';
+key_type_to_erl(private_key_info) -> 'PrivateKeyInfo'.
 
 merge_type_list(Original, Override) ->
   NewKeys = get_type_keys(Override),
