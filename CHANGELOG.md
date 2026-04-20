@@ -1,6 +1,7 @@
 # Unreleased
 
 - support in-memory `PEM` and `DER` certificates for TLS
+- support mTLS
 
 # v9.0.1
 
