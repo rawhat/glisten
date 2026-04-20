@@ -67,6 +67,23 @@ pub type TcpOption {
   Ipv6
   Buffer(Int)
   Ip(Interface)
+  /// Controls client certificate verification.
+  Verify(VerifyMode)
+  /// Path to a PEM file containing CA certificate for client verification.
+  CaCertFile(String)
+  /// In-memory DER-encoded CA certificate for client verification.
+  CaCerts(List(BitArray))
+  /// When `True`, rejects connections that do not present a client certificate.  
+  /// Default False.
+  FailIfNoPeerCert(Bool)
+}
+
+/// Controls whether the server verifies the client's certificate
+pub type VerifyMode {
+  /// No client certificate is requested.
+  VerifyNone
+  /// Client must present a certificate.
+  VerifyPeer
 }
 
 pub type ErlangTcpOption

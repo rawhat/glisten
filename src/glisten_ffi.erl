@@ -44,6 +44,11 @@ to_erl_tcp_option({cert_key_config, {cert_key_pem, Cert, Key}}) ->
 to_erl_tcp_option({cert_key_config, {cert_key_der, Cert, KeyType, Key}}) ->
   ErlKeyType = key_type_to_erl(KeyType),
   {certs_keys, [#{cert => [Cert], key => {ErlKeyType, Key}}]};
+to_erl_tcp_option({verify, verify_peer}) -> {verify, verify_peer};
+to_erl_tcp_option({verify, verify_none}) -> {verify, verify_none};
+to_erl_tcp_option({ca_cert_file, Path}) -> {cacertfile, Path};
+to_erl_tcp_option({ca_certs, Certs}) -> {cacerts, Certs};
+to_erl_tcp_option({fail_if_no_peer_cert, V}) -> {fail_if_no_peer_cert, V};
 to_erl_tcp_option(Other) -> Other.
 
 key_type_to_erl(rsa_private_key)  -> 'RSAPrivateKey';

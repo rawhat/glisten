@@ -209,6 +209,7 @@ pub opaque type Builder(state, user_message) {
     http2_support: Bool,
     ipv6_support: Bool,
     tls_options: Option(options.TlsCerts),
+    client_verification: Option(CaCert),
     listener_name: Option(process.Name(listener.Message)),
     connection_factory_name: Option(
       process.Name(
@@ -287,6 +288,7 @@ pub fn new(
     http2_support: False,
     ipv6_support: False,
     tls_options: None,
+    client_verification: None,
     listener_name: None,
     connection_factory_name: None,
     active_state: options.Once,
@@ -356,7 +358,7 @@ pub fn with_tls(
   Builder(..builder, tls_options: Some(options.CertKeyFiles(cert, key)))
 }
 
-/// To use TLS, provide in-memory PEM_encoded certificate and key data.
+/// To use TLS, provide in-memory PEM-encoded certificate and key data.
 pub fn with_tls_pem(
   builder: Builder(state, user_message),
   cert cert: BitArray,
@@ -374,6 +376,23 @@ pub fn with_tls_der(
   key key: BitArray,
 ) -> Builder(state, user_message) {
   Builder(..builder, tls_options: Some(options.CertKeyDer(cert, key_type, key)))
+}
+
+/// Specifies the CA certificate source for verifying client certificates.
+pub type CaCert {
+  /// Path to a PEM file containing the CA certificate.
+  CaCertFile(path: String)
+  /// In-memory DER-encoded CA certificate.
+  CaCertData(certs: List(BitArray))
+}
+
+/// Enables mTLS by requiring clients to present a certificate signed by the 
+/// provided CA. Connections without a valid certificate are rejected.
+pub fn with_client_verification(
+  builder: Builder(state, user_message),
+  ca_cert: CaCert,
+) -> Builder(state, user_message) {
+  Builder(..builder, client_verification: Some(ca_cert))
 }
 
 /// Set the server's `ActiveState` for flow control of received packets.
@@ -436,6 +455,19 @@ pub fn start(
       Some(_), True -> [options.AlpnPreferredProtocols(["h2", "http/1.1"])]
       Some(_), False -> [options.AlpnPreferredProtocols(["http/1.1"])]
       None, _ -> []
+    })
+    |> list.append(case builder.client_verification {
+      Some(CaCertFile(path)) -> [
+        options.Verify(options.VerifyPeer),
+        options.CaCertFile(path),
+        options.FailIfNoPeerCert(True),
+      ]
+      Some(CaCertData(certs)) -> [
+        options.Verify(options.VerifyPeer),
+        options.CaCerts(certs),
+        options.FailIfNoPeerCert(True),
+      ]
+      None -> []
     })
 
   let transport = case builder.tls_options {
