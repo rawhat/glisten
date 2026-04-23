@@ -1,25 +1,16 @@
 import gleam/bytes_tree
-import gleam/dict.{type Dict}
-import gleam/erlang/atom.{type Atom}
 import gleam/erlang/process
 import gleam/int
 import gleam/io
 import gleam/option.{None}
-import gleam/string
 import glisten.{Packet}
 import logging
-
-@external(erlang, "logger", "update_primary_config")
-fn logger_update_primary_config(config: Dict(Atom, Atom)) -> Result(Nil, any)
 
 pub fn main() {
   let listener_name = process.new_name("glisten_listener")
 
   logging.configure()
-  let _ =
-    logger_update_primary_config(
-      dict.from_list([#(atom.create("level"), atom.create("debug"))]),
-    )
+  logging.set_level(logging.Debug)
 
   let assert Ok(_server) =
     glisten.new(fn(_conn) { #(Nil, None) }, fn(state, msg, conn) {
@@ -39,9 +30,15 @@ pub fn main() {
     |> glisten.with_listener_name(listener_name)
     |> glisten.start(0)
 
-  let info = glisten.get_server_info(listener_name, 5000)
+  let assert glisten.TcpServerInfo(port, ip_address) =
+    glisten.get_server_info(listener_name, 5000)
 
-  io.println("Listening on port: " <> int.to_string(info.port))
+  io.println(
+    "Listening on "
+    <> glisten.ip_address_to_string(ip_address)
+    <> " at port "
+    <> int.to_string(port),
+  )
 
   process.sleep_forever()
 }

@@ -1,6 +1,5 @@
 import gleam/bytes_tree
 import gleam/erlang/process
-import gleam/int
 import gleam/io
 import gleam/option.{None}
 import glisten.{Packet}
@@ -14,14 +13,7 @@ pub fn main() {
 
   let assert Ok(_server) =
     glisten.new(fn(_conn) { #(Nil, None) }, fn(state, msg, conn) {
-      let assert Ok(info) = glisten.get_connection_info(conn)
-      logging.log(
-        logging.Info,
-        "Client connected at "
-          <> glisten.ip_address_to_string(info.ip_address)
-          <> " at port "
-          <> int.to_string(info.port),
-      )
+      logging.log(logging.Info, "Client connected via unix socket")
 
       let assert Packet(msg) = msg
       let assert Ok(_) = glisten.send(conn, bytes_tree.from_bit_array(msg))
@@ -31,15 +23,10 @@ pub fn main() {
     |> glisten.with_listener_name(listener_name)
     |> glisten.start_unix("/tmp/test.sock")
 
-  let assert glisten.TcpServerInfo(port:, ip_address:) =
+  let assert glisten.UnixServerInfo(path:) =
     glisten.get_server_info(listener_name, 5000)
 
-  io.println(
-    "Listening on "
-    <> glisten.ip_address_to_string(ip_address)
-    <> " at port "
-    <> int.to_string(port),
-  )
+  io.println("Listening on " <> path)
 
   process.sleep_forever()
 }

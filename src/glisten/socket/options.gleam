@@ -17,6 +17,7 @@ pub type ActiveState {
 
 pub type Interface {
   Address(IpAddress)
+  UnixPath(String)
   Any
   Loopback
 }
@@ -91,7 +92,15 @@ pub type ErlangTcpOption
 @external(erlang, "glisten_ffi", "to_erl_tcp_options")
 pub fn to_erl_options(options: List(TcpOption)) -> List(ErlangTcpOption)
 
-pub const default_options = [
+pub const unix_default_options = [
+  Backlog(1024),
+  SendTimeout(30_000),
+  SendTimeoutClose(True),
+  Mode(Binary),
+  ActiveMode(Passive),
+]
+
+pub const tcp_default_options = [
   Backlog(1024),
   Nodelay(True),
   SendTimeout(30_000),
@@ -104,8 +113,12 @@ pub const default_options = [
 @external(erlang, "glisten_ffi", "merge_type_list")
 pub fn merge_type_list(original: List(a), override: List(a)) -> List(a)
 
-pub fn merge_with_defaults(options: List(TcpOption)) -> List(TcpOption) {
-  merge_type_list(default_options, options)
+pub fn merge_with_tcp_defaults(options: List(TcpOption)) -> List(TcpOption) {
+  merge_type_list(tcp_default_options, options)
+}
+
+pub fn merge_with_unix_defaults(options: List(TcpOption)) -> List(TcpOption) {
+  merge_type_list(unix_default_options, options)
 }
 
 pub type IpAddress {

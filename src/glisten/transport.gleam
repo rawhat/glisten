@@ -178,12 +178,6 @@ pub fn peername(
     Ssl -> ssl.peername(socket)
   }
   |> result.replace_error(Nil)
-  |> result.try(fn(pair) {
-    let #(ip_address, port) = pair
-    decode.run(ip_address, decode_ip())
-    |> result.map(fn(ip) { #(ip, port) })
-    |> result.replace_error(Nil)
-  })
 }
 
 @external(erlang, "inet", "ipv4_mapped_ipv6_address")
@@ -224,16 +218,9 @@ pub fn set_buffer_size(transport: Transport, socket: Socket) -> Result(Nil, Nil)
 pub fn sockname(
   transport: Transport,
   socket: ListenSocket,
-) -> Result(#(options.IpAddress, Int), SocketReason) {
+) -> Result(socket.SockName, SocketReason) {
   case transport {
     Tcp -> tcp.sockname(socket)
     Ssl -> ssl.sockname(socket)
   }
-  |> result.try(fn(pair) {
-    let #(maybe_ip, port) = pair
-    maybe_ip
-    |> decode.run(decode_ip())
-    |> result.map(fn(ip) { #(ip, port) })
-    |> result.replace_error(socket.Badarg)
-  })
 }

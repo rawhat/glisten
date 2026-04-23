@@ -93,7 +93,7 @@ pub fn ip_address_to_string_test() {
 }
 
 pub fn merge_type_lists_test() {
-  let default_list = options.default_options
+  let default_list = options.tcp_default_options
   let merge_with = [
     options.ActiveMode(options.Count(10)),
     options.CertKeyConfig(options.CertKeyFiles(

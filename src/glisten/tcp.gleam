@@ -3,6 +3,7 @@ import gleam/dict.{type Dict}
 import gleam/dynamic.{type Dynamic}
 import gleam/erlang/atom.{type Atom}
 import gleam/erlang/process.{type Pid}
+import gleam/list
 import glisten/socket.{type ListenSocket, type Socket, type SocketReason}
 import glisten/socket/options.{type TcpOption}
 
@@ -71,9 +72,20 @@ pub fn listen(
   port: Int,
   opts: List(TcpOption),
 ) -> Result(ListenSocket, SocketReason) {
-  opts
-  |> options.merge_with_defaults
-  |> options.to_erl_options
+  let is_unix =
+    list.any(opts, fn(option) {
+      case option {
+        options.Ip(options.UnixPath(_)) -> True
+        _ -> False
+      }
+    })
+
+  let merged = case is_unix {
+    True -> options.merge_with_unix_defaults(opts)
+    False -> options.merge_with_tcp_defaults(opts)
+  }
+
+  options.to_erl_options(merged)
   |> do_listen_tcp(port, _)
 }
 
@@ -84,8 +96,10 @@ pub fn handshake(socket: Socket) -> Result(Socket, Nil) {
 @external(erlang, "tcp", "negotiated_protocol")
 pub fn negotiated_protocol(socket: Socket) -> a
 
-@external(erlang, "inet", "peername")
-pub fn peername(socket: Socket) -> Result(#(Dynamic, Int), SocketReason)
+@external(erlang, "glisten_tcp_ffi", "peername")
+pub fn peername(
+  socket: Socket,
+) -> Result(#(options.IpAddress, Int), SocketReason)
 
 @external(erlang, "inet", "getopts")
 pub fn get_socket_opts(
@@ -93,5 +107,5 @@ pub fn get_socket_opts(
   opts: List(Atom),
 ) -> Result(List(#(Atom, Dynamic)), SocketReason)
 
-@external(erlang, "inet", "sockname")
-pub fn sockname(socket: ListenSocket) -> Result(#(Dynamic, Int), SocketReason)
+@external(erlang, "glisten_tcp_ffi", "sockname")
+pub fn sockname(socket: ListenSocket) -> Result(socket.SockName, SocketReason)
