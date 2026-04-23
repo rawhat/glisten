@@ -1,7 +1,7 @@
 -module(glisten_ffi).
 
 -export([parse_address/1, rescue/1, to_erl_tcp_options/1,
-  merge_type_list/2, socket_data/1]).
+  merge_type_list/2, socket_data/1, delete_file/1]).
 
 parse_address(Address) ->
   case inet:parse_address(Address) of
@@ -34,6 +34,10 @@ to_erl_tcp_option({ip, {address, {ip_v6, A, B, C, D, E, F, G, H}}}) ->
   {ip, {A, B, C, D, E, F, G, H}};
 to_erl_tcp_option({ip, any}) -> {ip, any};
 to_erl_tcp_option({ip, loopback}) -> {ip, loopback};
+to_erl_tcp_option({ip, {unix_path, <<"@", Rest/binary>>}}) ->
+  {ifaddr, {local, <<0, Rest/binary>>}};
+to_erl_tcp_option({ip, {unix_path, Path}}) ->
+  {ifaddr, {local, Path}};
 to_erl_tcp_option(ipv6) -> inet6;
 to_erl_tcp_option({cert_key_config, {cert_key_files, CertFile, KeyFile}}) ->
   {certs_keys, [#{certfile => CertFile, keyfile => KeyFile}]};
@@ -83,3 +87,10 @@ socket_data({tcp, _Socket, Data}) -> Data;
 socket_data({ssl, _Socket, Data}) -> Data;
 socket_data({tcp_error, _Socket, Reason}) -> Reason;
 socket_data({ssl_error, _Socket, Reason}) -> Reason.
+
+delete_file(Path) ->
+  case file:delete(Path) of
+    ok -> {ok, nil};
+    {error, enoent} -> {ok, nil};
+    {error, Reason} -> {error, Reason}
+  end.

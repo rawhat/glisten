@@ -71,7 +71,7 @@ pub fn listen(
   options: List(options.TcpOption),
 ) -> Result(ListenSocket, SocketReason) {
   options
-  |> options.merge_with_defaults
+  |> options.merge_with_tcp_defaults
   |> options.to_erl_options
   |> do_listen(port, _)
 }
@@ -79,11 +79,13 @@ pub fn listen(
 @external(erlang, "glisten_ssl_ffi", "negotiated_protocol")
 pub fn negotiated_protocol(socket: Socket) -> Result(String, String)
 
-@external(erlang, "ssl", "peername")
-pub fn peername(socket: Socket) -> Result(#(Dynamic, Int), SocketReason)
+@external(erlang, "glisten_ssl_ffi", "peername")
+pub fn peername(
+  socket: Socket,
+) -> Result(#(options.IpAddress, Int), SocketReason)
 
-@external(erlang, "ssl", "sockname")
-pub fn sockname(socket: ListenSocket) -> Result(#(Dynamic, Int), SocketReason)
+@external(erlang, "glisten_ssl_ffi", "sockname")
+pub fn sockname(socket: ListenSocket) -> Result(socket.SockName, SocketReason)
 
 @external(erlang, "ssl", "getopts")
 pub fn get_socket_opts(

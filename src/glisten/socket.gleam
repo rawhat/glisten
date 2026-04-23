@@ -1,3 +1,5 @@
+import glisten/socket/options
+
 pub type SocketReason {
   Closed
   Timeout
@@ -171,3 +173,8 @@ pub fn reason_to_string(reason: SocketReason) -> String {
 pub type ListenSocket
 
 pub type Socket
+
+pub type SockName {
+  TcpSockName(ip_address: options.IpAddress, port: Int)
+  UnixSockName(path: String)
+}

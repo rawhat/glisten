@@ -5,6 +5,7 @@ import logging
 
 pub fn main() {
   logging.configure()
+  logging.set_level(logging.Debug)
 
   use listener <- result.try(tcp.listen(8000, [ActiveMode(Passive)]))
   use socket <- result.try(tcp.accept(listener))

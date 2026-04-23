@@ -11,7 +11,7 @@ version = "0.1.0"
 
 [dependencies]
 glisten = { path = "../../" }
-gleam_stdlib = ">= 0.68.1 and < 1.0.0"
+gleam_stdlib = ">= 0.68.1 and < 2.0.0"
 gleam_erlang = ">= 1.3.0 and < 2.0.0"
 gleam_otp = ">= 1.2.0 and < 2.0.0"
 logging = ">= 1.3.0 and < 2.0.0"

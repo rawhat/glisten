@@ -1,4 +1,5 @@
 import gleam/bytes_tree.{type BytesTree}
+import gleam/dynamic
 import gleam/erlang/charlist.{type Charlist}
 import gleam/erlang/process.{type Selector, type Subject}
 import gleam/int
@@ -44,14 +45,22 @@ pub type ConnectionInfo {
   ConnectionInfo(port: Int, ip_address: IpAddress)
 }
 
+pub type ServerInfo {
+  TcpServerInfo(port: Int, ip_address: IpAddress)
+  UnixServerInfo(path: String)
+}
+
 /// Returns the user-provided port or the OS-assigned value if 0 was provided.
 pub fn get_server_info(
   listener: process.Name(listener.Message),
   timeout: Int,
-) -> ConnectionInfo {
+) -> ServerInfo {
   let listener = process.named_subject(listener)
   let state = process.call(listener, timeout, listener.Info)
-  ConnectionInfo(state.port, convert_ip_address(state.ip_address))
+  case state.sock_name {
+    socket.TcpSockName(ip, port) -> TcpServerInfo(port, convert_ip_address(ip))
+    socket.UnixSockName(path) -> UnixServerInfo(path)
+  }
 }
 
 /// This type holds useful bits of data for the active connection.
@@ -103,7 +112,13 @@ fn join_ipv6_fields(fields) {
 /// it is the leftmost that is compressed.
 ///
 /// This returns the start & end indices of the compressed zeros.
-fn ipv6_zeros(fields, pos, len, max_start, max_len) -> Result(#(Int, Int), Nil) {
+fn ipv6_zeros(
+  fields,
+  pos,
+  len,
+  max_start,
+  max_len,
+) -> Result(#(Int, Int), Nil) {
   case fields {
     [] if max_len > 1 -> Ok(#(max_start, max_start + max_len))
     [] -> Error(Nil)
@@ -487,6 +502,58 @@ pub fn start(
   |> acceptor.start_pool(transport, port, options, listener_name)
 }
 
+@external(erlang, "glisten_ffi", "delete_file")
+fn delete_socket_file(path: String) -> Result(Nil, dynamic.Dynamic)
+
+pub fn start_unix(
+  builder: Builder(state, user_message),
+  path: String,
+) -> Result(actor.Started(supervisor.Supervisor), actor.StartError) {
+  case path {
+    "@" <> _ -> Nil
+    _ -> {
+      let _ = delete_socket_file(path)
+      Nil
+    }
+  }
+
+  let listener_name =
+    option.unwrap(builder.listener_name, process.new_name("glisten_listener"))
+  let connection_supervisor =
+    option.unwrap(
+      builder.connection_factory_name,
+      process.new_name("glisten_connection_supervisor"),
+    )
+
+  let options =
+    [options.Ip(options.UnixPath(path))]
+    |> list.append(case builder.tls_options {
+      Some(opts) -> [options.CertKeyConfig(opts)]
+      _ -> []
+    })
+    |> list.append(case builder.tls_options, builder.http2_support {
+      Some(_), True -> [options.AlpnPreferredProtocols(["h2", "http/1.1"])]
+      Some(_), False -> [options.AlpnPreferredProtocols(["http/1.1"])]
+      None, _ -> []
+    })
+
+  let transport = case builder.tls_options {
+    Some(_) -> transport.Ssl
+    _ -> transport.Tcp
+  }
+
+  Pool(
+    handler: convert_loop(builder.loop),
+    name: connection_supervisor,
+    pool_count: builder.pool_size,
+    on_init: convert_on_init(builder.on_init),
+    on_close: builder.on_close,
+    transport:,
+    active_state: builder.active_state,
+  )
+  |> acceptor.start_pool(transport, 0, options, listener_name)
+}
+
 @external(erlang, "glisten_ffi", "parse_address")
 fn parse_address(value: Charlist) -> Result(ip_address, Nil)
 
@@ -497,4 +564,11 @@ pub fn supervised(
   port: Int,
 ) -> ChildSpecification(supervisor.Supervisor) {
   supervision.supervisor(fn() { start(handler, port) })
+}
+
+pub fn supervised_unix(
+  handler: Builder(state, user_message),
+  path: String,
+) -> ChildSpecification(supervisor.Supervisor) {
+  supervision.supervisor(fn() { start_unix(handler, path) })
 }
