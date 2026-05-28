@@ -27,6 +27,8 @@ pub fn it_echoes_messages_test() {
       let Nil = process.send(client_subject, Connected)
       let assert Ok(socket) = tcp.accept(listener)
       let loop = fn() {
+        let assert Ok(msg) = tcp.peek_timeout(socket, 0, 200)
+        process.send(client_subject, Response(msg))
         let assert Ok(msg) = tcp.receive_timeout(socket, 0, 200)
         process.send(client_subject, Response(msg))
       }
@@ -38,8 +40,11 @@ pub fn it_echoes_messages_test() {
   let client = tcp_client.connect(54_321)
   let assert Ok(_) =
     tcp.send(client, bytes_tree.from_bit_array(<<"hi mom":utf8>>))
-  let assert Ok(Response(resp)) = process.receive(client_subject, 200)
 
+  let assert Ok(Response(peek_resp)) = process.receive(client_subject, 200)
+  assert peek_resp == <<"hi mom":utf8>>
+
+  let assert Ok(Response(resp)) = process.receive(client_subject, 200)
   assert resp == <<"hi mom":utf8>>
 }
 
