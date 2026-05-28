@@ -3,6 +3,7 @@ import gleam/dict.{type Dict}
 import gleam/dynamic.{type Dynamic}
 import gleam/erlang/atom.{type Atom}
 import gleam/erlang/process.{type Pid}
+import gleam/result
 import glisten/socket.{type ListenSocket, type Socket, type SocketReason}
 import glisten/socket/options.{type TcpOption}
 
@@ -33,6 +34,23 @@ pub fn receive_timeout(
 
 @external(erlang, "gen_tcp", "recv")
 pub fn receive(socket: Socket, length: Int) -> Result(BitArray, SocketReason)
+
+@external(erlang, "gen_tcp", "unrecv")
+fn do_unrecv(socket: Socket, data: BitArray) -> Result(Nil, SocketReason)
+
+pub fn peek_timeout(
+  socket: Socket,
+  length: Int,
+  timeout: Int,
+) -> Result(BitArray, SocketReason) {
+  receive_timeout(socket, length, timeout)
+  |> result.try(fn(msg) { do_unrecv(socket, msg) |> result.replace(msg) })
+}
+
+pub fn peek(socket: Socket, length: Int) -> Result(BitArray, SocketReason) {
+  receive(socket, length)
+  |> result.try(fn(msg) { do_unrecv(socket, msg) |> result.replace(msg) })
+}
 
 @external(erlang, "glisten_tcp_ffi", "send")
 pub fn send(socket: Socket, packet: BytesTree) -> Result(Nil, SocketReason)
