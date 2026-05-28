@@ -35,7 +35,7 @@ pub fn receive_timeout(
 @external(erlang, "gen_tcp", "recv")
 pub fn receive(socket: Socket, length: Int) -> Result(BitArray, SocketReason)
 
-@external(erlang, "gen_tcp", "unrecv")
+@external(erlang, "glisten_tcp_ffi", "unrecv")
 fn do_unrecv(socket: Socket, data: BitArray) -> Result(Nil, SocketReason)
 
 pub fn peek_timeout(

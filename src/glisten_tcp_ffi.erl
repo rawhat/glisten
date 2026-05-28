@@ -1,6 +1,6 @@
 -module(glisten_tcp_ffi).
 
--export([controlling_process/2, send/2, set_opts/2, shutdown/2, close/1]).
+-export([controlling_process/2, send/2, set_opts/2, shutdown/2, close/1, unrecv/2]).
 
 send(Socket, Packet) ->
   case gen_tcp:send(Socket, Packet) of
@@ -36,6 +36,14 @@ shutdown(Socket, How) ->
 
 close(Socket) ->
   case gen_tcp:close(Socket) of
+    ok ->
+      {ok, nil};
+    {error, Reason} ->
+      {error, Reason}
+  end.
+
+unrecv(Socket, Data) ->
+  case gen_tcp:unrecv(Socket, Data) of
     ok ->
       {ok, nil};
     {error, Reason} ->
