@@ -103,7 +103,7 @@ pub fn ip_address_to_string(address: IpAddress) -> String {
   }
 }
 
-fn join_ipv6_fields(fields) {
+fn join_ipv6_fields(fields: List(Int)) -> String {
   list.map(fields, int.to_base16) |> string.join(":")
 }
 
@@ -113,11 +113,11 @@ fn join_ipv6_fields(fields) {
 ///
 /// This returns the start & end indices of the compressed zeros.
 fn ipv6_zeros(
-  fields,
-  pos,
-  len,
-  max_start,
-  max_len,
+  fields: List(Int),
+  pos: Int,
+  len: Int,
+  max_start: Int,
+  max_len: Int,
 ) -> Result(#(Int, Int), Nil) {
   case fields {
     [] if max_len > 1 -> Ok(#(max_start, max_start + max_len))
