@@ -3,6 +3,7 @@
 - support in-memory `PEM` and `DER` certificates for TLS
 - support mTLS
 - Support unix sockets
+
 # v9.0.1
 
 - Bump `stdlib` to `>=1.0.0`

@@ -27,9 +27,10 @@ pub fn main() {
       let assert Ok(_) = glisten.send(conn, bytes_tree.from_bit_array(msg))
       glisten.continue(state)
     })
+    |> glisten.bind("localhost")
     |> glisten.with_ipv6
     |> glisten.with_listener_name(listener_name)
-    |> glisten.start_unix("/tmp/test.sock")
+    |> glisten.start(0)
 
   let assert glisten.TcpServerInfo(port:, ip_address:) =
     glisten.get_server_info(listener_name, 5000)
