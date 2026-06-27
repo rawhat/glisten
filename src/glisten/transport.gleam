@@ -99,7 +99,10 @@ pub fn send(
   }
 }
 
-pub fn close(transport: Transport, socket: Socket) -> Result(Nil, SocketReason) {
+pub fn close(
+  transport: Transport,
+  socket: Socket,
+) -> Result(Nil, SocketReason) {
   case transport {
     Tcp -> tcp.close(socket)
     Ssl -> ssl.close(socket)
@@ -198,7 +201,10 @@ pub fn get_socket_opts(
   |> result.replace_error(Nil)
 }
 
-pub fn set_buffer_size(transport: Transport, socket: Socket) -> Result(Nil, Nil) {
+pub fn set_buffer_size(
+  transport: Transport,
+  socket: Socket,
+) -> Result(Nil, Nil) {
   get_socket_opts(transport, socket, [atom.create("recbuf")])
   |> result.try(fn(p) {
     case p {
