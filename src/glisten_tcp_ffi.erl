@@ -1,6 +1,6 @@
 -module(glisten_tcp_ffi).
 
--export([controlling_process/2, send/2, set_opts/2, shutdown/2, close/1, sockname/1, peername/1]).
+-export([controlling_process/2, send/2, set_opts/2, shutdown/2, close/1, sockname/1, peername/1, unrecv/2]).
 
 send(Socket, Packet) ->
   case gen_tcp:send(Socket, Packet) of
@@ -68,3 +68,11 @@ normalize_ip({A, B, C, D, E, F, G, H}) ->
   {ip_v6, A, B, C, D, E, F, G, H};
 normalize_ip({A, B, C, D}) ->
   {ip_v4, A, B, C, D}.
+
+unrecv(Socket, Data) ->
+  case gen_tcp:unrecv(Socket, Data) of
+    ok ->
+      {ok, nil};
+    {error, Reason} ->
+      {error, Reason}
+  end.

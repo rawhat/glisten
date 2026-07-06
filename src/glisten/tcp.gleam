@@ -4,6 +4,7 @@ import gleam/dynamic.{type Dynamic}
 import gleam/erlang/atom.{type Atom}
 import gleam/erlang/process.{type Pid}
 import gleam/list
+import gleam/result
 import glisten/socket.{type ListenSocket, type Socket, type SocketReason}
 import glisten/socket/options.{type TcpOption}
 
@@ -34,6 +35,35 @@ pub fn receive_timeout(
 
 @external(erlang, "gen_tcp", "recv")
 pub fn receive(socket: Socket, length: Int) -> Result(BitArray, SocketReason)
+
+@external(erlang, "glisten_tcp_ffi", "unrecv")
+fn do_unrecv(socket: Socket, data: BitArray) -> Result(Nil, SocketReason)
+
+/// Peeks data from the given socket without consuming it, allowing the same data to be read in the future.
+/// This may be used for probing data from a bytestream, without impacting any processing that expects to read data directly from a socket.
+/// 
+/// USE WITH CAUTION:
+/// Callers expecting to repeatedly peek until a certain amount of data is buffered, *must not* call this function with a length value of 0.
+/// The data returned from a receive with length=0 immediately after a peek should not be considered all data currently available to read.
+/// 
+/// This is a wrapper around successive receive and unrecv call. This reads some data, and then immediately re-queues it for the next receive.
+/// This message cannot be appended with more data, and will likely behave unexpectedly with receive or peek calls intending to read all available data (parameter length value == 0).
+/// That is, the next receive call (implicit if peeking) after a peek, will return the exact same data as the last peek even if more data is available to read.
+pub fn peek_timeout(
+  socket: Socket,
+  length: Int,
+  timeout: Int,
+) -> Result(BitArray, SocketReason) {
+  receive_timeout(socket, length, timeout)
+  |> result.try(fn(msg) { do_unrecv(socket, msg) |> result.replace(msg) })
+}
+
+/// USE WITH CAUTION:
+/// See the docs for peek_timeout
+pub fn peek(socket: Socket, length: Int) -> Result(BitArray, SocketReason) {
+  receive(socket, length)
+  |> result.try(fn(msg) { do_unrecv(socket, msg) |> result.replace(msg) })
+}
 
 @external(erlang, "glisten_tcp_ffi", "send")
 pub fn send(socket: Socket, packet: BytesTree) -> Result(Nil, SocketReason)
