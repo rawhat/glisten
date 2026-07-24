@@ -80,9 +80,7 @@ pub fn listen(
 pub fn negotiated_protocol(socket: Socket) -> Result(String, String)
 
 @external(erlang, "glisten_ssl_ffi", "peername")
-pub fn peername(
-  socket: Socket,
-) -> Result(#(options.IpAddress, Int), SocketReason)
+pub fn peername(socket: Socket) -> Result(socket.SockName, SocketReason)
 
 @external(erlang, "glisten_ssl_ffi", "sockname")
 pub fn sockname(socket: ListenSocket) -> Result(socket.SockName, SocketReason)

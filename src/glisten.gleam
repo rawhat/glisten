@@ -19,6 +19,7 @@ import glisten/socket.{
 }
 import glisten/socket/options
 import glisten/transport.{type Transport}
+import logging
 
 /// Your provided loop function will receive these message types as the
 /// second argument.
@@ -41,26 +42,31 @@ pub type Socket =
 pub type SocketReason =
   InternalSocketReason
 
-pub type ConnectionInfo {
-  ConnectionInfo(port: Int, ip_address: IpAddress)
+/// The address a socket is bound to, or the address of a connected peer.
+/// Unix sockets have no port/IP, only the bound path.
+pub type SocketAddress {
+  TcpSocketAddress(port: Int, ip_address: IpAddress)
+  UnixSocketAddress(path: String)
 }
 
-pub type ServerInfo {
-  TcpServerInfo(port: Int, ip_address: IpAddress)
-  UnixServerInfo(path: String)
+@internal
+pub fn convert_sock_name(sock_name: socket.SockName) -> SocketAddress {
+  case sock_name {
+    socket.TcpSockName(ip, port) ->
+      TcpSocketAddress(port, convert_ip_address(ip))
+    socket.UnixSockName(path) -> UnixSocketAddress(path)
+  }
 }
 
 /// Returns the user-provided port or the OS-assigned value if 0 was provided.
+///
+/// Pass the subject for the `listener_name` given to `new`.
 pub fn get_server_info(
-  listener: process.Name(listener.Message),
+  listener: Subject(listener.Message),
   timeout: Int,
-) -> ServerInfo {
-  let listener = process.named_subject(listener)
+) -> SocketAddress {
   let state = process.call(listener, timeout, listener.Info)
-  case state.sock_name {
-    socket.TcpSockName(ip, port) -> TcpServerInfo(port, convert_ip_address(ip))
-    socket.UnixSockName(path) -> UnixServerInfo(path)
-  }
+  convert_sock_name(state.sock_name)
 }
 
 /// This type holds useful bits of data for the active connection.
@@ -136,14 +142,15 @@ fn ipv6_zeros(
   }
 }
 
-/// Tries to read the IP address and port of a connected client.  It will
-/// return valid IPv4 or IPv6 addresses, attempting to return the most relevant
-/// one for the client.
+/// Tries to read the address of a connected client. For TCP/TLS connections
+/// this is the IPv4 or IPv6 address and port, attempting to return the most
+/// relevant one for the client. For unix socket connections this is the
+/// bound path, since unix sockets have no per-client address.
 pub fn get_connection_info(
   conn: Connection(user_message),
-) -> Result(ConnectionInfo, Nil) {
+) -> Result(SocketAddress, Nil) {
   transport.peername(conn.transport, conn.socket)
-  |> result.map(fn(pair) { ConnectionInfo(pair.1, convert_ip_address(pair.0)) })
+  |> result.map(convert_sock_name)
 }
 
 /// Sends a BytesTree message over the socket using the active transport
@@ -155,13 +162,17 @@ pub fn send(
 }
 
 pub opaque type Next(user_state, user_message) {
-  Continue(state: user_state, selector: Option(Selector(user_message)))
+  Continue(
+    state: user_state,
+    selector: Option(Selector(user_message)),
+    active_state: Option(options.ActiveState),
+  )
   NormalStop
   AbnormalStop(String)
 }
 
 pub fn continue(state: user_state) -> Next(user_state, user_message) {
-  Continue(state, None)
+  Continue(state, None, None)
 }
 
 pub fn with_selector(
@@ -169,8 +180,41 @@ pub fn with_selector(
   selector: Selector(user_message),
 ) -> Next(user_state, user_message) {
   case next {
-    Continue(state, _) -> Continue(state, Some(selector))
+    Continue(state, _, active_state) ->
+      Continue(state, Some(selector), active_state)
     stop -> stop
+  }
+}
+
+/// Overrides the socket's `ActiveState` starting with this message. Applied
+/// immediately when this `Next` is processed and persists as the new default 
+/// for future commands until changed again. Allowed are `Once`, `Active` and 
+/// `Count(n)` where n > 1. An invalid value is ignored.
+pub fn set_active_state(
+  next: Next(user_state, user_message),
+  active_state: options.ActiveState,
+) -> Next(user_state, user_message) {
+  case active_state {
+    options.Passive -> {
+      logging.log(
+        logging.Warning,
+        "Ignoring set_active_state: cannot set the connection's `ActiveState` to `Passive`",
+      )
+      next
+    }
+    options.Count(n) if n <= 1 -> {
+      logging.log(
+        logging.Warning,
+        "Ignoring set_active_state: Count shall be greater than 1",
+      )
+      next
+    }
+    options.Once | options.Active | options.Count(_) ->
+      case next {
+        Continue(state, selector, _) ->
+          Continue(state, selector, Some(active_state))
+        stop -> stop
+      }
   }
 }
 
@@ -187,7 +231,8 @@ pub fn convert_next(
   next: Next(state, user_message),
 ) -> handler.Next(state, user_message) {
   case next {
-    Continue(state, selector) -> handler.Continue(state, selector)
+    Continue(state, selector, active_state) ->
+      handler.Continue(state, selector, active_state)
     NormalStop -> handler.NormalStop
     AbnormalStop(reason) -> handler.AbnormalStop(reason)
   }
@@ -199,9 +244,13 @@ pub fn map_selector(
   mapper: fn(user_message) -> other_message,
 ) -> Next(state, other_message) {
   case next {
-    Continue(state, Some(selector)) ->
-      Continue(state, Some(process.map_selector(selector, mapper)))
-    Continue(state, None) -> Continue(state, None)
+    Continue(state, Some(selector), active_state) ->
+      Continue(
+        state,
+        Some(process.map_selector(selector, mapper)),
+        active_state,
+      )
+    Continue(state, None, active_state) -> Continue(state, None, active_state)
     AbnormalStop(reason) -> AbnormalStop(reason)
     NormalStop -> NormalStop
   }
@@ -225,12 +274,11 @@ pub opaque type Builder(state, user_message) {
     ipv6_support: Bool,
     tls_options: Option(options.TlsCerts),
     client_verification: Option(CaCert),
-    listener_name: Option(process.Name(listener.Message)),
-    connection_factory_name: Option(
-      process.Name(
-        factory.Message(Socket, Subject(handler.Message(user_message))),
-      ),
+    listener_name: process.Name(listener.Message),
+    connection_factory_name: process.Name(
+      factory.Message(Socket, Subject(handler.Message(user_message))),
     ),
+    connection_shutdown_timeout_ms: Int,
     active_state: options.ActiveState,
   )
 }
@@ -256,13 +304,18 @@ fn convert_loop(
       handler.Custom(msg) -> User(msg)
     }
     case loop(data, message, conn) {
-      Continue(data, selector) ->
-        case selector {
+      Continue(data, selector, active_state) -> {
+        let next = case selector {
           Some(selector) ->
             handler.continue(data)
             |> handler.with_selector(map_user_selector(selector))
           _ -> handler.continue(data)
         }
+        case active_state {
+          Some(active_state) -> handler.with_active_state(next, active_state)
+          None -> next
+        }
+      }
 
       NormalStop -> handler.stop()
       AbnormalStop(reason) -> handler.stop_abnormal(reason)
@@ -286,13 +339,24 @@ fn convert_on_init(
   }
 }
 
-/// Create a new handler for each connection.  The required arguments mirror the
-/// `actor.start` API from `gleam_otp`.  The default pool is 10 accceptor
-/// processes.
+/// Create a new handler for each connection.  The `on_init` and `loop`
+/// arguments mirror the `actor.start` API from `gleam_otp`. The default pool
+/// is 10 acceptor processes.
+///
+/// `listener_name` and `connection_factory_name` are process names `glisten`
+/// uses internally to wire the listener and connection factory together.
+/// Create each once, at the point your program starts, and pass them in here.
+/// 
+/// `listener_name` is also what you use for `get_server_info` if you need to
+/// read back the bound port or path.
 pub fn new(
-  on_init: fn(Connection(user_message)) ->
+  listener_name listener_name: process.Name(listener.Message),
+  connection_factory_name connection_factory_name: process.Name(
+    factory.Message(Socket, Subject(handler.Message(user_message))),
+  ),
+  on_init on_init: fn(Connection(user_message)) ->
     #(state, Option(Selector(user_message))),
-  loop: Loop(state, user_message),
+  loop loop: Loop(state, user_message),
 ) -> Builder(state, user_message) {
   Builder(
     interface: options.Loopback,
@@ -304,8 +368,9 @@ pub fn new(
     ipv6_support: False,
     tls_options: None,
     client_verification: None,
-    listener_name: None,
-    connection_factory_name: None,
+    listener_name:,
+    connection_factory_name:,
+    connection_shutdown_timeout_ms: 5000,
     active_state: options.Once,
   )
 }
@@ -426,12 +491,22 @@ pub fn with_active_state(
   }
 }
 
+/// Sets how long, in milliseconds, a connection handler is given to shut down
+/// once the supervisor asks it to before being forcefully killed. Default is 
+/// 5000.
+pub fn with_connection_shutdown_timeout_ms(
+  builder: Builder(state, user_message),
+  timeout_ms: Int,
+) -> Builder(state, user_message) {
+  Builder(..builder, connection_shutdown_timeout_ms: timeout_ms)
+}
+
 @internal
 pub fn with_listener_name(
   builder: Builder(state, user_message),
   listener_name: process.Name(listener.Message),
 ) -> Builder(state, user_message) {
-  Builder(..builder, listener_name: Some(listener_name))
+  Builder(..builder, listener_name:)
 }
 
 @internal
@@ -441,7 +516,7 @@ pub fn with_connection_factory_name(
     factory.Message(socket.Socket, Subject(handler.Message(user_message))),
   ),
 ) -> Builder(state, user_message) {
-  Builder(..builder, connection_factory_name: Some(connection_factory_name))
+  Builder(..builder, connection_factory_name:)
 }
 
 /// Start the TCP server with the given handler on the provided port
@@ -449,13 +524,8 @@ pub fn start(
   builder: Builder(state, user_message),
   port: Int,
 ) -> Result(actor.Started(supervisor.Supervisor), actor.StartError) {
-  let listener_name =
-    option.unwrap(builder.listener_name, process.new_name("glisten_listener"))
-  let connection_supervisor =
-    option.unwrap(
-      builder.connection_factory_name,
-      process.new_name("glisten_connection_supervisor"),
-    )
+  let listener_name = builder.listener_name
+  let connection_supervisor = builder.connection_factory_name
   let options =
     [options.Ip(builder.interface)]
     |> list.append(case builder.ipv6_support {
@@ -498,6 +568,7 @@ pub fn start(
     on_close: builder.on_close,
     transport:,
     active_state: builder.active_state,
+    connection_shutdown_timeout_ms: builder.connection_shutdown_timeout_ms,
   )
   |> acceptor.start_pool(transport, port, options, listener_name)
 }
@@ -517,13 +588,8 @@ pub fn start_unix(
     }
   }
 
-  let listener_name =
-    option.unwrap(builder.listener_name, process.new_name("glisten_listener"))
-  let connection_supervisor =
-    option.unwrap(
-      builder.connection_factory_name,
-      process.new_name("glisten_connection_supervisor"),
-    )
+  let listener_name = builder.listener_name
+  let connection_supervisor = builder.connection_factory_name
 
   let options =
     [options.Ip(options.UnixPath(path))]
@@ -550,6 +616,7 @@ pub fn start_unix(
     on_close: builder.on_close,
     transport:,
     active_state: builder.active_state,
+    connection_shutdown_timeout_ms: builder.connection_shutdown_timeout_ms,
   )
   |> acceptor.start_pool(transport, 0, options, listener_name)
 }

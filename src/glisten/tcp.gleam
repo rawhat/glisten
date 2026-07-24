@@ -97,9 +97,7 @@ pub fn handshake(socket: Socket) -> Result(Socket, Nil) {
 pub fn negotiated_protocol(socket: Socket) -> a
 
 @external(erlang, "glisten_tcp_ffi", "peername")
-pub fn peername(
-  socket: Socket,
-) -> Result(#(options.IpAddress, Int), SocketReason)
+pub fn peername(socket: Socket) -> Result(socket.SockName, SocketReason)
 
 @external(erlang, "inet", "getopts")
 pub fn get_socket_opts(

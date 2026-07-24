@@ -6,7 +6,7 @@ import gleam/otp/actor
 import gleam/result
 import gleam/string
 import glisten/socket.{type Socket, type SocketReason}
-import glisten/socket/options.{type ActiveState, type IpAddress}
+import glisten/socket/options.{type ActiveState}
 import glisten/transport.{type Transport}
 import logging
 
@@ -35,7 +35,7 @@ pub type LoopMessage(user_message) {
 }
 
 pub type ClientIp =
-  Result(#(IpAddress, Int), Nil)
+  Result(socket.SockName, Nil)
 
 pub type LoopState(state, user_message) {
   LoopState(
@@ -44,6 +44,7 @@ pub type LoopState(state, user_message) {
     sender: Subject(Message(user_message)),
     transport: Transport,
     state: state,
+    active_state: ActiveState,
   )
 }
 
@@ -57,13 +58,17 @@ pub type Connection(user_message) {
 }
 
 pub type Next(user_state, user_message) {
-  Continue(state: user_state, selector: Option(Selector(user_message)))
+  Continue(
+    state: user_state,
+    selector: Option(Selector(user_message)),
+    active_state: Option(ActiveState),
+  )
   NormalStop
   AbnormalStop(reason: String)
 }
 
 pub fn continue(state: user_state) -> Next(user_state, user_message) {
-  Continue(state, None)
+  Continue(state, None, None)
 }
 
 pub fn with_selector(
@@ -71,7 +76,19 @@ pub fn with_selector(
   selector: Selector(user_message),
 ) -> Next(user_state, user_message) {
   case next {
-    Continue(state, _) -> Continue(state, Some(selector))
+    Continue(state, _, active_state) ->
+      Continue(state, Some(selector), active_state)
+    stop -> stop
+  }
+}
+
+pub fn with_active_state(
+  next: Next(user_state, user_message),
+  active_state: ActiveState,
+) -> Next(user_state, user_message) {
+  case next {
+    Continue(state, selector, _) ->
+      Continue(state, selector, Some(active_state))
     stop -> stop
   }
 }
@@ -82,6 +99,108 @@ pub fn stop() -> Next(user_state, user_message) {
 
 pub fn stop_abnormal(reason: String) -> Next(user_state, user_message) {
   AbnormalStop(reason)
+}
+
+fn apply_next(
+  state: LoopState(state, user_message),
+  res: Result(Next(state, LoopMessage(user_message)), Dynamic),
+  packet_consumed: Bool,
+) -> actor.Next(LoopState(state, user_message), Message(user_message)) {
+  case res {
+    Ok(Continue(next_state, selector, Some(new_active_state))) ->
+      case
+        transport.set_opts(state.transport, state.socket, [
+          options.ActiveMode(new_active_state),
+        ])
+      {
+        Ok(Nil) ->
+          actor.continue(
+            LoopState(
+              ..state,
+              state: next_state,
+              active_state: new_active_state,
+            ),
+          )
+          |> apply_selector(state.sender, selector)
+        Error(_) -> actor.stop()
+      }
+    Ok(Continue(next_state, selector, None))
+      if packet_consumed && state.active_state == options.Once
+    ->
+      case
+        transport.set_opts(state.transport, state.socket, [
+          options.ActiveMode(options.Once),
+        ])
+      {
+        Ok(Nil) ->
+          actor.continue(LoopState(..state, state: next_state))
+          |> apply_selector(state.sender, selector)
+        Error(_) -> actor.stop()
+      }
+    Ok(Continue(next_state, selector, None)) ->
+      actor.continue(LoopState(..state, state: next_state))
+      |> apply_selector(state.sender, selector)
+    Ok(NormalStop) -> actor.stop()
+    Ok(AbnormalStop(reason)) -> actor.stop_abnormal(reason)
+    Error(reason) -> {
+      logging.log(
+        logging.Error,
+        "Caught error in user handler: " <> string.inspect(reason),
+      )
+      actor.continue(state)
+    }
+  }
+}
+
+// Applies a selector returned from `Continue`.
+fn apply_selector(
+  next: actor.Next(LoopState(state, user_message), Message(user_message)),
+  sender: Subject(Message(user_message)),
+  selector: Option(Selector(LoopMessage(user_message))),
+) -> actor.Next(LoopState(state, user_message), Message(user_message)) {
+  case selector {
+    None -> next
+    Some(selector) -> {
+      let mapped =
+        process.map_selector(selector, fn(loop_message) {
+          case loop_message {
+            Custom(message) -> User(message)
+            Packet(bits) -> Internal(ReceiveMessage(bits))
+          }
+        })
+
+      actor.with_selector(
+        next,
+        internal_selector(sender) |> process.merge_selector(mapped),
+      )
+    }
+  }
+}
+
+// The intenral selector that contains socket events mapped to `Internal` plus 
+// the connection's own subject.
+fn internal_selector(
+  sender: Subject(Message(user_message)),
+) -> Selector(Message(user_message)) {
+  process.new_selector()
+  |> process.select_record(atom.create("tcp"), 2, fn(record) {
+    ReceiveMessage(socket_data(record))
+  })
+  |> process.select_record(atom.create("ssl"), 2, fn(record) {
+    ReceiveMessage(socket_data(record))
+  })
+  |> process.select_record(atom.create("ssl_closed"), 1, fn(_nil) { Closed })
+  |> process.select_record(atom.create("tcp_closed"), 1, fn(_nil) { Closed })
+  |> process.select_record(atom.create("ssl_passive"), 1, fn(_nil) { Passive })
+  |> process.select_record(atom.create("tcp_passive"), 1, fn(_nil) { Passive })
+  |> process.select_record(atom.create("tcp_error"), 2, fn(record) {
+    SocketError(socket_error(record))
+  })
+  |> process.select_record(atom.create("ssl_error"), 2, fn(record) {
+    SocketError(socket_error(record))
+  })
+  |> process.map_selector(Internal)
+  |> process.merge_selector(process.new_selector() |> process.select(sender))
 }
 
 pub type Loop(state, user_message) =
@@ -154,6 +273,7 @@ pub fn start(
       sender: subject,
       transport: handler.transport,
       state: initial_state,
+      active_state: handler.active_state,
     )
     |> actor.initialised()
     |> actor.selecting(selector)
@@ -193,7 +313,7 @@ pub fn start(
             // Note that the active_state must set to Passive at start of
             // Listener/Accept and not changed until the Ready message is
             // received.
-            let options = [options.ActiveMode(handler.active_state)]
+            let options = [options.ActiveMode(state.active_state)]
             case transport.set_opts(state.transport, state.socket, options) {
               Ok(_) -> actor.continue(state)
               Error(_) -> actor.stop_abnormal("Failed to set socket active")
@@ -203,64 +323,16 @@ pub fn start(
       User(msg) -> {
         let msg = Custom(msg)
         let res = rescue(fn() { handler.loop(state.state, msg, connection) })
-        case res {
-          Ok(Continue(next_state, _selector))
-            if handler.active_state == options.Once
-          -> {
-            case
-              transport.set_opts(state.transport, state.socket, [
-                options.ActiveMode(options.Once),
-              ])
-            {
-              Ok(Nil) -> actor.continue(LoopState(..state, state: next_state))
-              Error(_) -> actor.stop()
-            }
-          }
-          Ok(Continue(next_state, _selector)) ->
-            actor.continue(LoopState(..state, state: next_state))
-          Ok(NormalStop) -> actor.stop()
-          Ok(AbnormalStop(reason)) -> actor.stop_abnormal(reason)
-          Error(reason) -> {
-            logging.log(
-              logging.Error,
-              "Caught error in user handler: " <> string.inspect(reason),
-            )
-            actor.continue(state)
-          }
-        }
+        apply_next(state, res, False)
       }
       Internal(ReceiveMessage(msg)) -> {
         let msg = Packet(msg)
         let res = rescue(fn() { handler.loop(state.state, msg, connection) })
-        case res {
-          Ok(Continue(next_state, _selector))
-            if handler.active_state == options.Once
-          -> {
-            case
-              transport.set_opts(state.transport, state.socket, [
-                options.ActiveMode(options.Once),
-              ])
-            {
-              Ok(Nil) -> actor.continue(LoopState(..state, state: next_state))
-              Error(_) -> actor.stop()
-            }
-          }
-          Ok(Continue(next_state, _selector)) ->
-            actor.continue(LoopState(..state, state: next_state))
-          Ok(NormalStop) -> actor.stop()
-          Ok(AbnormalStop(reason)) -> actor.stop_abnormal(reason)
-          Error(reason) -> {
-            logging.log(
-              logging.Error,
-              "Caught error in user handler: " <> string.inspect(reason),
-            )
-            actor.continue(state)
-          }
-        }
+        apply_next(state, res, True)
       }
       Internal(Passive) -> {
         let options = [
-          options.ActiveMode(handler.active_state),
+          options.ActiveMode(state.active_state),
         ]
         case transport.set_opts(state.transport, state.socket, options) {
           Ok(_) -> actor.continue(state)

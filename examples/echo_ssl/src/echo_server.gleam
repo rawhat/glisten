@@ -8,30 +8,36 @@ import logging
 
 pub fn main() {
   let listener_name = process.new_name("glisten_listener")
+  let connection_factory_name = process.new_name("glisten_connection_factory")
 
   logging.configure()
   logging.set_level(logging.Debug)
 
   let assert Ok(_server) =
-    glisten.new(fn(_conn) { #(Nil, None) }, fn(state, msg, conn) {
-      let assert Ok(info) = glisten.get_connection_info(conn)
-      logging.log(
-        logging.Info,
-        "Client connected at "
-          <> glisten.ip_address_to_string(info.ip_address)
-          <> " at port "
-          <> int.to_string(info.port),
-      )
-      let assert Packet(msg) = msg
-      let assert Ok(_) = glisten.send(conn, bytes_tree.from_bit_array(msg))
-      glisten.continue(state)
-    })
+    glisten.new(
+      listener_name,
+      connection_factory_name,
+      fn(_conn) { #(Nil, None) },
+      fn(state, msg, conn) {
+        let assert Ok(glisten.TcpSocketAddress(port:, ip_address:)) =
+          glisten.get_connection_info(conn)
+        logging.log(
+          logging.Info,
+          "Client connected at "
+            <> glisten.ip_address_to_string(ip_address)
+            <> " at port "
+            <> int.to_string(port),
+        )
+        let assert Packet(msg) = msg
+        let assert Ok(_) = glisten.send(conn, bytes_tree.from_bit_array(msg))
+        glisten.continue(state)
+      },
+    )
     |> glisten.with_tls(certfile: "localhost.crt", keyfile: "localhost.key")
-    |> glisten.with_listener_name(listener_name)
     |> glisten.start(0)
 
-  let assert glisten.TcpServerInfo(port, ip_address) =
-    glisten.get_server_info(listener_name, 5000)
+  let assert glisten.TcpSocketAddress(port, ip_address) =
+    glisten.get_server_info(process.named_subject(listener_name), 5000)
 
   io.println(
     "Listening on "

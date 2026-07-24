@@ -45,12 +45,19 @@ pub fn it_echoes_messages_test() {
 
 pub fn it_accepts_from_the_pool_test() {
   let client_sender = process.new_subject()
+  let listener_name = process.new_name("glisten_listener")
+  let connection_factory_name = process.new_name("glisten_connection_factory")
   let assert Ok(_server) =
-    glisten.new(fn(_conn) { #(Nil, None) }, fn(state, msg, conn) {
-      let assert Packet(msg) = msg
-      let assert Ok(_) = tcp.send(conn.socket, bytes_tree.from_bit_array(msg))
-      glisten.continue(state)
-    })
+    glisten.new(
+      listener_name,
+      connection_factory_name,
+      fn(_conn) { #(Nil, None) },
+      fn(state, msg, conn) {
+        let assert Packet(msg) = msg
+        let assert Ok(_) = tcp.send(conn.socket, bytes_tree.from_bit_array(msg))
+        glisten.continue(state)
+      },
+    )
     |> glisten.with_pool_size(1)
     |> glisten.start(54_321)
 

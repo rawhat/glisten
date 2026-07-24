@@ -54,10 +54,10 @@ sockname(Socket) ->
 
 peername(Socket) ->
   case inet:peername(Socket) of
-    {ok, {local, _}} ->
-      {error, enotconn};
+    {ok, {local, Path}} ->
+      {ok, {unix_sock_name, Path}};
     {ok, {Ip, Port}} ->
-      {ok, {normalize_ip(Ip), Port}};
+      {ok, {tcp_sock_name, normalize_ip(Ip), Port}};
     {error, Reason} ->
       {error, Reason}
   end.

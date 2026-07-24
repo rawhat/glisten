@@ -175,7 +175,7 @@ pub fn decode_ip() -> Decoder(options.IpAddress) {
 pub fn peername(
   transport: Transport,
   socket: Socket,
-) -> Result(#(options.IpAddress, Int), Nil) {
+) -> Result(socket.SockName, Nil) {
   case transport {
     Tcp -> tcp.peername(socket)
     Ssl -> ssl.peername(socket)

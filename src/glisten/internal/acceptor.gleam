@@ -26,11 +26,15 @@ pub type AcceptorError {
   ControlError(atom.Atom)
 }
 
-pub type AcceptorState {
+pub type AcceptorState(user_message) {
   AcceptorState(
     sender: Subject(AcceptorMessage),
     socket: Option(Socket),
     transport: Transport,
+    connection_factory: factory.Supervisor(
+      Socket,
+      Subject(handler.Message(user_message)),
+    ),
   )
 }
 
@@ -49,7 +53,9 @@ pub fn start(
     let state = process.call(listener, 750, listener.Info)
     process.send(subject, AcceptConnection(state.listen_socket))
 
-    AcceptorState(subject, None, pool.transport)
+    let connection_factory = factory.get_by_name(connection_supervisor)
+
+    AcceptorState(subject, None, pool.transport, connection_factory)
     |> actor.initialised
     |> actor.returning(subject)
     |> actor.selecting(
@@ -59,7 +65,7 @@ pub fn start(
     |> Ok
   })
   |> actor.on_message(fn(state, msg) {
-    let AcceptorState(sender, ..) = state
+    let AcceptorState(sender, connection_factory:, ..) = state
     case msg {
       AcceptConnection(listener) -> {
         let res = {
@@ -67,7 +73,6 @@ pub fn start(
             transport.accept(state.transport, listener)
             |> result.map_error(AcceptError),
           )
-          let connection_factory = factory.get_by_name(connection_supervisor)
           case factory.start_child(connection_factory, sock) {
             Ok(start) -> {
               transport.controlling_process(state.transport, sock, start.pid)
@@ -122,6 +127,7 @@ pub type Pool(data, user_message) {
     on_init: fn(Connection(user_message)) ->
       #(data, Option(Selector(user_message))),
     on_close: Option(fn(data) -> Nil),
+    connection_shutdown_timeout_ms: Int,
     transport: Transport,
     active_state: options.ActiveState,
   )
@@ -166,6 +172,7 @@ pub fn start_pool(
         active_state: pool.active_state,
       ))
     })
+    |> factory.timeout(pool.connection_shutdown_timeout_ms)
     |> factory.named(pool.name)
     |> factory.restart_strategy(supervision.Temporary)
     |> factory.supervised,
