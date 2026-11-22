@@ -80,6 +80,7 @@ pub fn start(
           }
         }
         case res {
+          Error(AcceptError(socket.Closed)) -> actor.stop()
           Error(reason) -> {
             let msg = case reason {
               AcceptError(reason) ->
@@ -137,24 +138,8 @@ pub fn start_pool(
   options: List(TcpOption),
   listener_name: process.Name(listener.Message),
 ) -> Result(actor.Started(supervisor.Supervisor), actor.StartError) {
+  // Accepted connections survive listener and acceptor restarts.
   supervisor.new(supervisor.OneForOne)
-  |> supervisor.add(
-    supervision.worker(fn() {
-      listener.start(port, transport, options, listener_name)
-    }),
-  )
-  |> supervisor.add(
-    supervision.supervisor(fn() {
-      supervisor.new(supervisor.OneForOne)
-      |> int.range(from: 0, to: pool.pool_count, with: _, run: fn(sup, _index) {
-        supervisor.add(
-          sup,
-          supervision.worker(fn() { start(pool, listener_name, pool.name) }),
-        )
-      })
-      |> supervisor.start
-    }),
-  )
   |> supervisor.add(
     factory.worker_child(fn(socket) {
       handler.start(Handler(
@@ -169,6 +154,37 @@ pub fn start_pool(
     |> factory.named(pool.name)
     |> factory.restart_strategy(supervision.Temporary)
     |> factory.supervised,
+  )
+  |> supervisor.add(
+    supervision.supervisor(fn() {
+      supervisor.new(supervisor.RestForOne)
+      |> supervisor.add(
+        supervision.worker(fn() {
+          listener.start(port, transport, options, listener_name)
+        }),
+      )
+      |> supervisor.add(
+        supervision.supervisor(fn() {
+          supervisor.new(supervisor.OneForOne)
+          |> int.range(
+            from: 0,
+            to: pool.pool_count,
+            with: _,
+            run: fn(sup, _index) {
+              supervisor.add(
+                sup,
+                supervision.worker(fn() {
+                  start(pool, listener_name, pool.name)
+                })
+                  |> supervision.restart(supervision.Transient),
+              )
+            },
+          )
+          |> supervisor.start
+        }),
+      )
+      |> supervisor.start
+    }),
   )
   |> supervisor.start
 }

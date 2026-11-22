@@ -109,6 +109,17 @@ pub fn close(
   }
 }
 
+/// Closes a listening socket without closing accepted connections.
+pub fn close_listener(
+  transport: Transport,
+  socket: ListenSocket,
+) -> Result(Nil, SocketReason) {
+  case transport {
+    Tcp -> tcp.close(socket)
+    Ssl -> ssl.close_listener(socket)
+  }
+}
+
 pub fn shutdown(
   transport: Transport,
   socket: Socket,

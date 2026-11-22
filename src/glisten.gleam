@@ -2,6 +2,7 @@ import gleam/bytes_tree.{type BytesTree}
 import gleam/dynamic
 import gleam/erlang/charlist.{type Charlist}
 import gleam/erlang/process.{type Selector, type Subject}
+import gleam/function
 import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -50,6 +51,108 @@ pub type ServerInfo {
   UnixServerInfo(path: String)
 }
 
+/// A reference to the listening socket's owner, valid for that listener's life.
+pub opaque type ListenerControl {
+  ListenerControl(
+    name: process.Name(listener.Message),
+    listener: listener.Control,
+    server_info: ServerInfo,
+  )
+}
+
+/// The native supervision handle and control of its listening socket.
+pub type StartedWithListener {
+  StartedWithListener(
+    started: actor.Started(supervisor.Supervisor),
+    listener: ListenerControl,
+  )
+}
+
+/// Why a started listener did not return its control subject.
+pub type ListenerInfoFailure {
+  ListenerNotRegistered
+  ListenerInfoExited(listener_pid: process.Pid, reason: process.ExitReason)
+  ListenerInfoTimedOut(listener_pid: process.Pid, within: Int)
+  ListenerInfoOwnerChanged(expected_pid: process.Pid, actual_pid: process.Pid)
+}
+
+/// What was observed after terminating an incomplete server startup.
+pub type ListenerStartupCleanup {
+  SupervisorStopped(reason: process.ExitReason)
+  SupervisorTerminationUnconfirmed(within: Int)
+}
+
+/// A native startup error, or a control lookup failure and its cleanup.
+pub type StartWithListenerError {
+  StartFailed(reason: actor.StartError)
+  ListenerControlFailed(
+    listener_name: process.Name(listener.Message),
+    port: Int,
+    supervisor_pid: process.Pid,
+    reason: ListenerInfoFailure,
+    cleanup: ListenerStartupCleanup,
+  )
+}
+
+/// Why stopping a listening socket was not acknowledged.
+pub type StopAcceptingFailure {
+  ListenerCloseFailed(reason: SocketReason)
+  ListenerExited(reason: process.ExitReason)
+  StopAcceptingTimedOut(within: Int)
+}
+
+/// A failed stop with the listener's identity, address, and native cause.
+pub type StopAcceptingError {
+  StopAcceptingError(
+    listener_name: process.Name(listener.Message),
+    listener_pid: process.Pid,
+    server_info: ServerInfo,
+    reason: StopAcceptingFailure,
+  )
+}
+
+type StopAcceptingMessage {
+  ListenerClosed(result: Result(Nil, SocketReason))
+  ListenerDown(down: process.Down)
+}
+
+type ListenerInfoMessage {
+  ListenerInfo(state: listener.State)
+  ListenerInfoDown(down: process.Down)
+}
+
+/// Closes the listening socket and acknowledges its native close. Accepted
+/// connections and their supervisor keep running. Calling this again succeeds
+/// while the same listener owner is alive; a timeout leaves the close requested.
+pub fn stop_accepting(
+  control: ListenerControl,
+  within timeout: Int,
+) -> Result(ServerInfo, StopAcceptingError) {
+  let reply = process.new_subject()
+  let monitor = process.monitor(control.listener.pid)
+  let selector =
+    process.new_selector()
+    |> process.select_map(reply, ListenerClosed(result: _))
+    |> process.select_specific_monitor(monitor, ListenerDown(down: _))
+  process.send(control.listener.subject, listener.StopAccepting(caller: reply))
+  let server_info = control.server_info
+  let stopped = case process.selector_receive(selector, within: timeout) {
+    Ok(ListenerClosed(result: Ok(Nil))) -> Ok(server_info)
+    Ok(ListenerClosed(result: Error(reason))) ->
+      Error(ListenerCloseFailed(reason:))
+    Ok(ListenerDown(down:)) -> Error(ListenerExited(reason: down.reason))
+    Error(Nil) -> Error(StopAcceptingTimedOut(within: timeout))
+  }
+  process.demonitor_process(monitor)
+  stopped
+  |> result.map_error(StopAcceptingError(
+    listener_name: control.name,
+    listener_pid: control.listener.pid,
+    server_info:,
+    reason: _,
+  ))
+}
+
 /// Returns the user-provided port or the OS-assigned value if 0 was provided.
 pub fn get_server_info(
   listener: process.Name(listener.Message),
@@ -57,7 +160,11 @@ pub fn get_server_info(
 ) -> ServerInfo {
   let listener = process.named_subject(listener)
   let state = process.call(listener, timeout, listener.Info)
-  case state.sock_name {
+  convert_server_info(state.sock_name)
+}
+
+fn convert_server_info(sock_name: socket.SockName) -> ServerInfo {
+  case sock_name {
     socket.TcpSockName(ip, port) -> TcpServerInfo(port, convert_ip_address(ip))
     socket.UnixSockName(path) -> UnixServerInfo(path)
   }
@@ -451,6 +558,105 @@ pub fn start(
 ) -> Result(actor.Started(supervisor.Supervisor), actor.StartError) {
   let listener_name =
     option.unwrap(builder.listener_name, process.new_name("glisten_listener"))
+  start_listener(builder, port, listener_name)
+}
+
+/// Starts a TCP or TLS server, returning its native supervision handle and
+/// control for stopping accepts independently of accepted connections.
+pub fn start_with_listener(
+  builder: Builder(state, user_message),
+  port: Int,
+) -> Result(StartedWithListener, StartWithListenerError) {
+  let listener_name =
+    option.unwrap(builder.listener_name, process.new_name("glisten_listener"))
+  use started <- result.try(
+    start_listener(builder, port, listener_name)
+    |> result.map_error(StartFailed(reason: _)),
+  )
+  case read_listener_info(listener_name, within: 5000) {
+    Ok(listener_state) ->
+      Ok(StartedWithListener(
+        started:,
+        listener: ListenerControl(
+          name: listener_name,
+          listener: listener_state.control,
+          server_info: convert_server_info(listener_state.sock_name),
+        ),
+      ))
+    Error(reason) ->
+      Error(ListenerControlFailed(
+        listener_name:,
+        port:,
+        supervisor_pid: started.pid,
+        reason:,
+        cleanup: terminate_incomplete_startup(started.pid),
+      ))
+  }
+}
+
+fn read_listener_info(
+  listener_name: process.Name(listener.Message),
+  within timeout: Int,
+) -> Result(listener.State, ListenerInfoFailure) {
+  case process.named(listener_name) {
+    Error(Nil) -> Error(ListenerNotRegistered)
+    Ok(listener_pid) -> {
+      let monitor = process.monitor(listener_pid)
+      let reply = process.new_subject()
+      let selector =
+        process.new_selector()
+        |> process.select_map(reply, ListenerInfo(state: _))
+        |> process.select_specific_monitor(monitor, ListenerInfoDown(down: _))
+      // Named timer delivery tolerates an owner exiting before the send.
+      let request =
+        process.send_after(
+          process.named_subject(listener_name),
+          0,
+          listener.Info(caller: reply),
+        )
+      let response = case process.selector_receive(selector, within: timeout) {
+        Ok(ListenerInfo(state:)) if state.control.pid == listener_pid ->
+          Ok(state)
+        Ok(ListenerInfo(state:)) ->
+          Error(ListenerInfoOwnerChanged(
+            expected_pid: listener_pid,
+            actual_pid: state.control.pid,
+          ))
+        Ok(ListenerInfoDown(down:)) ->
+          Error(ListenerInfoExited(listener_pid:, reason: down.reason))
+        Error(Nil) ->
+          Error(ListenerInfoTimedOut(listener_pid:, within: timeout))
+      }
+      case process.cancel_timer(request) {
+        process.TimerNotFound | process.Cancelled(..) -> Nil
+      }
+      process.demonitor_process(monitor)
+      response
+    }
+  }
+}
+
+fn terminate_incomplete_startup(pid: process.Pid) -> ListenerStartupCleanup {
+  process.unlink(pid)
+  let monitor = process.monitor(pid)
+  process.send_exit(pid)
+  let cleanup = case
+    process.new_selector()
+    |> process.select_specific_monitor(monitor, function.identity)
+    |> process.selector_receive(within: 5000)
+  {
+    Ok(down) -> SupervisorStopped(reason: down.reason)
+    Error(Nil) -> SupervisorTerminationUnconfirmed(within: 5000)
+  }
+  process.demonitor_process(monitor)
+  cleanup
+}
+
+fn start_listener(
+  builder: Builder(state, user_message),
+  port: Int,
+  listener_name: process.Name(listener.Message),
+) -> Result(actor.Started(supervisor.Supervisor), actor.StartError) {
   let connection_supervisor =
     option.unwrap(
       builder.connection_factory_name,
