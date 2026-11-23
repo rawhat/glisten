@@ -39,6 +39,10 @@ pub fn send(socket: Socket, packet: BytesTree) -> Result(Nil, SocketReason)
 @external(erlang, "glisten_ssl_ffi", "close")
 pub fn close(socket: Socket) -> Result(Nil, SocketReason)
 
+/// Closes a listening socket and cancels its pending accepts.
+@external(erlang, "glisten_ssl_ffi", "close")
+pub fn close_listener(socket: ListenSocket) -> Result(Nil, SocketReason)
+
 @external(erlang, "glisten_ssl_ffi", "shutdown")
 pub fn do_shutdown(socket: Socket, write: Atom) -> Result(Nil, SocketReason)
 

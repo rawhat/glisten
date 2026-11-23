@@ -7,6 +7,7 @@ import gleam/otp/factory_supervisor as factory
 import gleam/otp/static_supervisor as supervisor
 import gleam/otp/supervision
 import gleam/result
+import gleam/string
 import glisten/internal/handler.{
   type Connection, type Loop, Handler, Internal, Ready,
 }
@@ -38,16 +39,13 @@ pub type AcceptorState {
 /// which receives the messages from the socket
 pub fn start(
   pool: Pool(data, user_message),
-  listener_name: process.Name(listener.Message),
+  listening_socket: ListenSocket,
   connection_supervisor: process.Name(
     factory.Message(Socket, Subject(handler.Message(user_message))),
   ),
 ) -> Result(actor.Started(Subject(AcceptorMessage)), actor.StartError) {
   actor.new_with_initialiser(1000, fn(subject) {
-    let listener = process.named_subject(listener_name)
-
-    let state = process.call(listener, 750, listener.Info)
-    process.send(subject, AcceptConnection(state.listen_socket))
+    process.send(subject, AcceptConnection(listening_socket))
 
     AcceptorState(subject, None, pool.transport)
     |> actor.initialised
@@ -80,6 +78,7 @@ pub fn start(
           }
         }
         case res {
+          Error(AcceptError(socket.Closed)) -> actor.stop()
           Error(reason) -> {
             let msg = case reason {
               AcceptError(reason) ->
@@ -137,24 +136,8 @@ pub fn start_pool(
   options: List(TcpOption),
   listener_name: process.Name(listener.Message),
 ) -> Result(actor.Started(supervisor.Supervisor), actor.StartError) {
+  // Accepted connections survive listener and acceptor restarts.
   supervisor.new(supervisor.OneForOne)
-  |> supervisor.add(
-    supervision.worker(fn() {
-      listener.start(port, transport, options, listener_name)
-    }),
-  )
-  |> supervisor.add(
-    supervision.supervisor(fn() {
-      supervisor.new(supervisor.OneForOne)
-      |> int.range(from: 0, to: pool.pool_count, with: _, run: fn(sup, _index) {
-        supervisor.add(
-          sup,
-          supervision.worker(fn() { start(pool, listener_name, pool.name) }),
-        )
-      })
-      |> supervisor.start
-    }),
-  )
   |> supervisor.add(
     factory.worker_child(fn(socket) {
       handler.start(Handler(
@@ -169,6 +152,32 @@ pub fn start_pool(
     |> factory.named(pool.name)
     |> factory.restart_strategy(supervision.Temporary)
     |> factory.supervised,
+  )
+  |> supervisor.add(
+    supervision.worker(fn() {
+      listener.start(port, transport, options, listener_name, fn(socket) {
+        // Acceptors share the lifetime of their listening socket. The factory
+        // stays outside that link so established connections stay open.
+        supervisor.new(supervisor.OneForOne)
+        |> int.range(
+          from: 0,
+          to: pool.pool_count,
+          with: _,
+          run: fn(sup, _index) {
+            supervisor.add(
+              sup,
+              supervision.worker(fn() { start(pool, socket, pool.name) })
+                |> supervision.restart(supervision.Transient),
+            )
+          },
+        )
+        |> supervisor.start
+        |> result.map(fn(_) { Nil })
+        |> result.map_error(fn(reason) {
+          "Failed to start socket acceptors: " <> string.inspect(reason)
+        })
+      })
+    }),
   )
   |> supervisor.start
 }
