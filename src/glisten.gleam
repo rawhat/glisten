@@ -573,6 +573,16 @@ pub fn start_with_listener(
     start_listener(builder, port, listener_name)
     |> result.map_error(StartFailed(reason: _)),
   )
+  attach_listener_control(started, listener_name, port)
+}
+
+/// Gets listener control for a supervisor started with the supplied listener name.
+/// If the listener is unavailable, terminates that supervisor and reports the cause.
+pub fn attach_listener_control(
+  started: actor.Started(supervisor.Supervisor),
+  listener_name: process.Name(listener.Message),
+  port: Int,
+) -> Result(StartedWithListener, StartWithListenerError) {
   case read_listener_info(listener_name, within: 5000) {
     Ok(listener_state) ->
       Ok(StartedWithListener(

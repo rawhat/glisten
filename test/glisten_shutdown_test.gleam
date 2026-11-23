@@ -126,7 +126,7 @@ pub fn a_listener_failure_restarts_acceptors_and_keeps_connections_test() {
 pub fn stopping_accepts_keeps_an_accepted_connection_alive_test() {
   let held = process.new_subject()
   let listener_name = process.new_name("glisten_shutdown_test")
-  let assert Ok(server) =
+  let assert Ok(started) =
     glisten.new(
       fn(_connection) { #(process.new_subject(), None) },
       fn(release, message, connection) {
@@ -140,7 +140,9 @@ pub fn stopping_accepts_keeps_an_accepted_connection_alive_test() {
     )
     |> glisten.with_listener_name(listener_name)
     |> glisten.with_pool_size(2)
-    |> glisten.start_with_listener(0)
+    |> glisten.start(0)
+  let assert Ok(server) =
+    glisten.attach_listener_control(started, listener_name, 0)
 
   let server_info = glisten.get_server_info(listener_name, 1000)
   let assert Ok(listener_pid) = process.named(listener_name)
