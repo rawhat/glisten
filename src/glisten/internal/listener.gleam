@@ -17,11 +17,8 @@ pub type Control {
 }
 
 pub type State {
-  State(
-    listen_socket: ListenSocket,
-    sock_name: socket.SockName,
-    control: Control,
-  )
+  Listening(sock_name: socket.SockName, control: Control, socket: ListenSocket)
+  AcceptingStopped(sock_name: socket.SockName, control: Control)
 }
 
 pub fn start(
@@ -29,36 +26,28 @@ pub fn start(
   transport: Transport,
   options: List(TcpOption),
   name: process.Name(Message),
+  start_acceptors: fn(ListenSocket) -> Result(Nil, String),
 ) -> Result(actor.Started(Subject(Message)), actor.StartError) {
   actor.new_with_initialiser(5000, fn(subject) {
     let control = process.new_subject()
-    transport.listen(transport, port, options)
-    |> result.try(fn(socket) {
+    use socket <- result.try(
+      transport.listen(transport, port, options)
+      |> result.map_error(listener_start_failed),
+    )
+    use sock_name <- result.try(
       transport.sockname(transport, socket)
-      |> result.map(fn(sock_name) {
-        State(
-          listen_socket: socket,
-          sock_name:,
-          control: Control(pid: process.self(), subject: control),
-        )
-      })
-    })
-    |> result.map(fn(state) {
-      state
-      |> actor.initialised
-      |> actor.selecting(
-        process.new_selector()
-        |> process.select(subject)
-        |> process.select(control),
-      )
-      |> actor.returning(subject)
-    })
-    |> result.map_error(fn(err) {
-      let error_string =
-        "Failed to start socket listener: " <> socket.reason_to_string(err)
-      logging.log(logging.Error, error_string)
-      error_string
-    })
+      |> result.map_error(listener_start_failed),
+    )
+    use _ <- result.try(start_acceptors(socket))
+    Listening(sock_name:, control: Control(process.self(), control), socket:)
+    |> actor.initialised
+    |> actor.selecting(
+      process.new_selector()
+      |> process.select(subject)
+      |> process.select(control),
+    )
+    |> actor.returning(subject)
+    |> Ok
   })
   |> actor.on_message(fn(state, msg) {
     case msg {
@@ -67,14 +56,34 @@ pub fn start(
         actor.continue(state)
       }
       StopAccepting(caller:) -> {
-        case transport.close_listener(transport, state.listen_socket) {
-          Ok(Nil) | Error(socket.Closed) -> process.send(caller, Ok(Nil))
-          Error(reason) -> process.send(caller, Error(reason))
+        case state {
+          AcceptingStopped(..) -> {
+            process.send(caller, Ok(Nil))
+            actor.continue(state)
+          }
+          Listening(sock_name:, control:, socket:) -> {
+            case transport.close_listener(transport, socket) {
+              Ok(Nil) | Error(socket.Closed) -> {
+                process.send(caller, Ok(Nil))
+                actor.continue(AcceptingStopped(sock_name:, control:))
+              }
+              Error(reason) -> {
+                process.send(caller, Error(reason))
+                actor.continue(state)
+              }
+            }
+          }
         }
-        actor.continue(state)
       }
     }
   })
   |> actor.named(name)
   |> actor.start
+}
+
+fn listener_start_failed(reason: socket.SocketReason) -> String {
+  let message =
+    "Failed to start socket listener: " <> socket.reason_to_string(reason)
+  logging.log(logging.Error, message)
+  message
 }
