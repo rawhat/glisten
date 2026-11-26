@@ -184,12 +184,6 @@ pub fn start(
         case transport.handshake(state.transport, state.socket) {
           Error(_) -> actor.stop_abnormal("Failed to handshake socket")
           Ok(_socket) -> {
-            case transport.set_buffer_size(state.transport, state.socket) {
-              Ok(_) -> Nil
-              Error(_nil) -> {
-                logging.log(logging.Warning, "Failed to read `recbuf` size")
-              }
-            }
             // Note that the active_state must set to Passive at start of
             // Listener/Accept and not changed until the Ready message is
             // received.
