@@ -107,6 +107,57 @@ pub fn it_keeps_the_default_socket_buffer_test() {
   assert smaller
 }
 
+pub fn it_sets_the_socket_buffer_size_test() {
+  let client_sender = process.new_subject()
+  let assert Ok(_server) =
+    glisten.new(fn(_conn) { #(Nil, None) }, fn(state, _msg, conn) {
+      let assert Ok([#(_buffer, buffer)]) =
+        transport.get_socket_opts(conn.transport, conn.socket, [
+          atom.create("buffer"),
+        ])
+      let assert Ok(buffer) = decode.run(buffer, decode.int)
+      process.send(client_sender, buffer)
+      glisten.continue(state)
+    })
+    |> glisten.with_pool_size(1)
+    |> glisten.with_buffer_size(50_000)
+    |> glisten.start(54_323)
+
+  let client = tcp_client.connect(54_323)
+  let assert Ok(_) =
+    tcp.send(client, bytes_tree.from_bit_array(<<"hi mom":utf8>>))
+
+  let assert Ok(buffer) = process.receive(client_sender, 200)
+
+  assert buffer == 50_000
+}
+
+pub fn it_sets_the_socket_buffer_size_on_unix_sockets_test() {
+  let client_sender = process.new_subject()
+  let path = "/tmp/glisten_buffer_size_test.sock"
+  let assert Ok(_server) =
+    glisten.new(fn(_conn) { #(Nil, None) }, fn(state, _msg, conn) {
+      let assert Ok([#(_buffer, buffer)]) =
+        transport.get_socket_opts(conn.transport, conn.socket, [
+          atom.create("buffer"),
+        ])
+      let assert Ok(buffer) = decode.run(buffer, decode.int)
+      process.send(client_sender, buffer)
+      glisten.continue(state)
+    })
+    |> glisten.with_pool_size(1)
+    |> glisten.with_buffer_size(50_000)
+    |> glisten.start_unix(path)
+
+  let client = tcp_client.connect_unix(path)
+  let assert Ok(_) =
+    tcp.send(client, bytes_tree.from_bit_array(<<"hi mom":utf8>>))
+
+  let assert Ok(buffer) = process.receive(client_sender, 200)
+
+  assert buffer == 50_000
+}
+
 pub fn ip_address_to_string_test() {
   use #(ip, expected) <- list.each([
     #(IpV6(0, 0, 0, 0, 0, 0, 0, 1), "::1"),

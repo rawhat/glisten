@@ -4,6 +4,7 @@
 - support mTLS
 - Support unix sockets
 - Stop setting `buffer` on the socket to the `recbuf` size
+- Add `with_buffer_size` to set the socket `buffer`
 
 # v9.0.1
 
