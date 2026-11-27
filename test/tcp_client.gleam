@@ -20,3 +20,18 @@ pub fn connect(port: Int) -> Socket {
     ])
   client
 }
+
+@external(erlang, "gen_tcp", "connect")
+fn unix_connect(
+  address: #(atom.Atom, String),
+  port: Int,
+  options: List(Dynamic),
+) -> Result(Socket, Nil)
+
+pub fn connect_unix(path: String) -> Socket {
+  let assert Ok(client) =
+    unix_connect(#(atom.create("local"), path), 0, [
+      from(atom.create("binary")),
+    ])
+  client
+}
