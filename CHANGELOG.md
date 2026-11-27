@@ -3,6 +3,7 @@
 - support in-memory `PEM` and `DER` certificates for TLS
 - support mTLS
 - Support unix sockets
+- Start the connection factory before the listener and acceptors
 
 # v9.0.1
 

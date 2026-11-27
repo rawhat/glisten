@@ -1,4 +1,5 @@
 import gleam/bytes_tree
+import gleam/dynamic
 import gleam/dynamic/decode
 import gleam/erlang/process
 import gleam/list
@@ -112,4 +113,32 @@ pub fn merge_type_lists_test() {
       options.CertKeyConfig(options.CertKeyFiles("hello.crt", "world.key")),
     ]
     == options.merge_type_list(default_list, merge_with)
+}
+
+@external(erlang, "supervisor", "which_children")
+fn which_children(
+  supervisor: process.Pid,
+) -> List(#(Int, process.Pid, dynamic.Dynamic, dynamic.Dynamic))
+
+pub fn it_starts_the_connection_factory_before_the_listener_test() {
+  let listener_name = process.new_name("glisten_test_listener")
+  let factory_name = process.new_name("glisten_test_connection_supervisor")
+  let assert Ok(server) =
+    glisten.new(fn(_conn) { #(Nil, None) }, fn(state, _msg, _conn) {
+      glisten.continue(state)
+    })
+    |> glisten.with_pool_size(1)
+    |> glisten.with_listener_name(listener_name)
+    |> glisten.with_connection_factory_name(factory_name)
+    |> glisten.start(54_324)
+
+  let assert Ok(listener) = process.named(listener_name)
+  let assert Ok(factory) = process.named(factory_name)
+  let children = which_children(server.pid)
+  let assert Ok(#(listener_id, _, _, _)) =
+    list.find(children, fn(child) { child.1 == listener })
+  let assert Ok(#(factory_id, _, _, _)) =
+    list.find(children, fn(child) { child.1 == factory })
+
+  assert factory_id < listener_id
 }
