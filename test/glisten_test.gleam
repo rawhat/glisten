@@ -1,5 +1,6 @@
 import gleam/bytes_tree
 import gleam/dynamic/decode
+import gleam/erlang/atom
 import gleam/erlang/process
 import gleam/list
 import gleam/option.{None}
@@ -7,6 +8,7 @@ import gleeunit
 import glisten.{IpV6, Packet}
 import glisten/socket/options
 import glisten/tcp
+import glisten/transport
 import tcp_client
 
 pub fn main() {
@@ -77,6 +79,32 @@ pub fn it_accepts_from_the_pool_test() {
   let assert Ok(msg) = process.receive(client_sender, 200)
 
   assert msg == <<"hi mom":utf8>>
+}
+
+pub fn it_keeps_the_default_socket_buffer_test() {
+  let client_sender = process.new_subject()
+  let assert Ok(_server) =
+    glisten.new(fn(_conn) { #(Nil, None) }, fn(state, _msg, conn) {
+      let assert Ok([#(_buffer, buffer), #(_recbuf, recbuf)]) =
+        transport.get_socket_opts(conn.transport, conn.socket, [
+          atom.create("buffer"),
+          atom.create("recbuf"),
+        ])
+      let assert Ok(buffer) = decode.run(buffer, decode.int)
+      let assert Ok(recbuf) = decode.run(recbuf, decode.int)
+      process.send(client_sender, buffer < recbuf)
+      glisten.continue(state)
+    })
+    |> glisten.with_pool_size(1)
+    |> glisten.start(54_322)
+
+  let client = tcp_client.connect(54_322)
+  let assert Ok(_) =
+    tcp.send(client, bytes_tree.from_bit_array(<<"hi mom":utf8>>))
+
+  let assert Ok(smaller) = process.receive(client_sender, 200)
+
+  assert smaller
 }
 
 pub fn ip_address_to_string_test() {
